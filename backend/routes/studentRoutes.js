@@ -6,6 +6,7 @@ import {
   updateStudentProfile,
   uploadResume,
   getStudentRecommendations,
+  deleteResume,
 } from '../controllers/studentController.js';
 import fetchuser from '../middleware/fetchuser.js';
 import { resumeUpload } from '../middleware/resumeUpload.js';
@@ -18,6 +19,7 @@ router.post('/', createStudentProfile);
 router.get('/me', fetchuser, getMyProfile);
 router.patch('/me', fetchuser, updateStudentProfile);
 router.post('/me/resume', fetchuser, resumeUpload.single('resume'), uploadResume);
+router.post('/me/resumedelete', fetchuser, deleteResume)
 
 router.get('/me/recommendations', fetchuser, getStudentRecommendations);
 

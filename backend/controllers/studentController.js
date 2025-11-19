@@ -1,6 +1,8 @@
 ﻿import path from "path";
 import Student from "../models/studentModel.js";
 import Job from "../models/jobModel.js";
+import ParsedResume from "../models/parsedResume.js";
+import fs from "fs";
 import {
   callAiRecommender,
   toAiJobPayload,
@@ -129,55 +131,132 @@ export const uploadResume = async (req, res) => {
     const studentId = ensureStudentId(req, res);
     if (!studentId) return;
 
-    if (!req.file)
+    if (!req.file) {
       return res.status(400).json({ message: "Resume file is required" });
+    }
 
     const resumeMeta = {
       fileName: req.file.filename,
       originalName: req.file.originalname,
       mimeType: req.file.mimetype,
       size: req.file.size,
-      storagePath: req.file.path
-        ? path.relative(process.cwd(), req.file.path)
-        : undefined,
+      storagePath: req.file.path ? path.relative(process.cwd(), req.file.path) : undefined,
       uploadedAt: new Date(),
     };
 
-    const update = { resume: resumeMeta };
+    // 1) Save resume metadata on Student (overwrite previous resume meta)
+    const student = await Student.findByIdAndUpdate(
+      studentId,
+      { resume: resumeMeta },
+      { new: true }
+    );
 
+    // If student not found (extra check)
+    if (!student) {
+      return res.status(404).json({ message: "Student not found" });
+    }
+
+    // 2) Attempt AI parsing
+    let parsed = null;
     try {
-      const parsed = await parseResumeWithAI({
+      parsed = await parseResumeWithAI({
         filePath: req.file.path,
         originalName: req.file.originalname,
         mimeType: req.file.mimetype,
       });
+    } catch (err) {
+      console.warn("AI parse failed:", err?.message || err);
+      // We deliberately don't delete existing parsed resume if parse fails.
+      return res.json({
+        message: "Resume uploaded, but parsing failed. Resume metadata saved.",
+        student,
+      });
+    }
 
-      const extracted = parsed?.extracted || parsed?.parsed || {};
-
-      update.resumeExtract = {
+    // 3) Build parsed resume document
+    const extracted = parsed?.extracted || parsed?.parsed || {};
+    const parsedResumeDoc = {
+      student: studentId,
+      resumeMeta,
+      resumeExtract: {
         skills: extracted.skills || [],
         projects: extracted.projects || [],
         tools: extracted.tools || [],
         experience: extracted.experience || [],
         education: extracted.education || [],
-        summary:
-          parsed?.raw_text?.replace(/\s+/g, " ").trim().slice(0, 250) || "",
-      };
+        summary: parsed?.raw_text?.replace(/\s+/g, " ").trim().slice(0, 250) || "",
+        rawText: parsed?.raw_text || "",
+      },
+      skillEmbedding: Array.isArray(parsed?.embedding) ? parsed.embedding : [],
+      parsedAt: new Date(),
+      parserInfo: {
+        engine: parsed?.engineName || "unknown",
+        version: parsed?.engineVersion || "unknown",
+      },
+    };
 
-      if (Array.isArray(parsed?.embedding)) {
-        update.skillEmbedding = parsed.embedding;
-      }
-    } catch (err) {
-      console.warn("AI parse failed:", err.message);
+    // 4) Remove any existing parsed resume for this student
+    // Use deleteOne to remove existing doc (if any)
+    await ParsedResume.deleteOne({ student: studentId });
+
+    // 5) Insert new parsed resume
+    const createdParsedResume = await ParsedResume.create(parsedResumeDoc);
+
+    // 6) Optionally link parsed resume id back to student (useful pointer)
+    const updatedStudent = await Student.findByIdAndUpdate(
+      studentId,
+      { parsedResume: createdParsedResume._id },
+      { new: true }
+    );
+
+    return res.json({
+      message: "Resume processed and parsed data saved.",
+      student: updatedStudent,
+      parsedResume: createdParsedResume,
+    });
+  } catch (err) {
+    console.error("uploadResume error:", err);
+    return res.status(500).json({ message: "Could not upload resume", error: err.message });
+  }
+};
+
+// -------------------------------------
+// Resume Delete
+// -------------------------------------
+export const deleteResume = async (req, res) => {
+  try {
+    const studentId = ensureStudentId(req, res);
+    if (!studentId) return;
+
+    const student = await Student.findById(studentId);
+    if (!student) {
+      return res.status(404).json({ message: "Student not found" });
     }
 
-    const student = await Student.findByIdAndUpdate(studentId, update, {
-      new: true,
-    });
+    // 1. Delete resume file from disk if exists
+    if (student.resume?.storagePath) {
+      const filePath = path.join(process.cwd(), student.resume.storagePath);
+      if (fs.existsSync(filePath)) {
+        try {
+          fs.unlinkSync(filePath);
+        } catch (err) {
+          console.warn("Could not delete file:", err.message);
+        }
+      }
+    }
 
-    res.json({ message: "Resume processed", student });
+    // 2. Delete parsed resume from separate collection
+    await ParsedResume.deleteOne({ student: studentId });
+
+    // 3. Remove resume metadata and parsedResume pointer
+    student.resume = undefined;
+    student.parsedResume = undefined;
+    await student.save();
+
+    return res.json({ message: "Resume deleted successfully" });
   } catch (err) {
-    res.status(500).json({ message: "Could not upload resume" });
+    console.error("deleteResume error:", err);
+    return res.status(500).json({ message: "Error deleting resume" });
   }
 };
 
