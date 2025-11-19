@@ -26,7 +26,7 @@ const studentSchema = new mongoose.Schema(
   {
     name: { type: String, trim: true },
 
-    universityEmail: {
+    email: {
       type: String,
       required: true,
       unique: true,

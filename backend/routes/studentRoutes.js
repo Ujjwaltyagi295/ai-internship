@@ -19,6 +19,6 @@ router.get('/me', fetchuser, getMyProfile);
 router.patch('/me', fetchuser, updateStudentProfile);
 router.post('/me/resume', fetchuser, resumeUpload.single('resume'), uploadResume);
 
-router.get('/:studentId/recommendations', getStudentRecommendations);
+router.get('/me/recommendations', fetchuser, getStudentRecommendations);
 
 export default router;

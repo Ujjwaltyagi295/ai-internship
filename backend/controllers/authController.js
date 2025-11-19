@@ -10,13 +10,13 @@ const JWT_SECRET = process.env.JWT_SECRET;
 
 export const signup = async (req, res) => {
   try {
-    const { name, universityEmail, password } = req.body;
+    const { name, email, password } = req.body;
 
-    if (!name || !universityEmail || !password) {
+    if (!name || !email || !password) {
       return res.status(400).json({ error: "All fields are required" });
     }
 
-    const existing = await Student.findOne({ universityEmail });
+    const existing = await Student.findOne({ email });
     if (existing) {
       return res.status(400).json({ error: "Email already registered" });
     }
@@ -26,39 +26,37 @@ export const signup = async (req, res) => {
 
     const student = await Student.create({
       name,
-      universityEmail,
+      email,
       password: securePass,
     });
 
-    const payload = { user: { id: student._id } };
-    const token = jwt.sign(payload, JWT_SECRET);
-
-    res.json({
+    // NOTE: No token is created here. Signup only creates the user.
+    return res.status(201).json({
       msg: "Signup successful",
-      token,
       user: {
         id: student._id,
         name: student.name,
-        universityEmail: student.universityEmail,
+        email: student.email,
       },
       role: "student",
     });
 
   } catch (error) {
-    console.error(error);
-    res.status(500).send("Internal Server Error");
+    console.error("Signup Error:", error);
+    return res.status(500).json({ error: "Signup failed. Try again later." });
   }
 };
 
+
 export const login = async (req, res) => {
   try {
-    const { universityEmail, password } = req.body;
+    const { email, password } = req.body;
 
-    if (!universityEmail || !password) {
+    if (!email || !password) {
       return res.status(400).json({ error: "All fields are required" });
     }
 
-    const student = await Student.findOne({ universityEmail });
+    const student = await Student.findOne({ email });
     if (!student) {
       return res.status(400).json({ error: "Invalid credentials" });
     }
@@ -71,39 +69,57 @@ export const login = async (req, res) => {
     const payload = { user: { id: student._id, role: student.role } };
     const token = jwt.sign(payload, JWT_SECRET, { expiresIn: "7d" });
 
-    res.json({
+    return res.json({
       msg: "Login successful",
       token,
       user: {
         id: student._id,
         name: student.name,
-        universityEmail: student.universityEmail,
+        email: student.email,
       },
     });
 
   } catch (error) {
-    console.error(error);
-    res.status(500).send("Internal Server Error");
+    console.error("Login Error:", error);
+    return res
+      .status(500)
+      .json({ error: "Login failed. Please try again later." });
   }
 };
 
 
 export const createAdmin = async (req, res) => {
-  if (req.body.secret !== process.env.ADMIN_CREATE_SECRET) {
-    return res.status(403).json({ error: "Unauthorized" });
+  try {
+    if (req.body.secret !== process.env.ADMIN_CREATE_SECRET) {
+      return res.status(403).json({ error: "Unauthorized" });
+    }
+
+    const { name, email, password } = req.body;
+
+    if (!name || !email || !password) {
+      return res.status(400).json({ error: "All fields are required" });
+    }
+
+    const existing = await Student.findOne({ email });
+    if (existing) {
+      return res.status(400).json({ error: "Admin email already exists" });
+    }
+
+    const hash = await bcrypt.hash(password, 10);
+
+    const admin = await Student.create({
+      name,
+      email,
+      password: hash,
+      role: "admin",
+    });
+
+    return res.json({ msg: "Admin created", admin });
+
+  } catch (error) {
+    console.error("Admin Creation Error:", error);
+    return res
+      .status(500)
+      .json({ error: "Could not create admin. Try again later." });
   }
-
-  const { name, universityEmail, password } = req.body;
-
-  const hash = await bcrypt.hash(password, 10);
-
-  const admin = await Student.create({
-    name,
-    universityEmail,
-    password: hash,
-    role: "admin",
-  });
-
-  res.json({ msg: "Admin created", admin });
 };
-

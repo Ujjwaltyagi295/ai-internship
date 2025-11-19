@@ -82,16 +82,16 @@ export const getStudents = async (_req, res) => {
 
 export const createStudentProfile = async (req, res) => {
   try {
-    const { universityEmail } = req.body;
+    const { email } = req.body;
 
-    if (!universityEmail)
+    if (!email)
       return res.status(400).json({ message: "University email is required" });
 
     const payload = buildProfileUpdates(req.body);
-    payload.universityEmail = universityEmail;
+    payload.email = email;
 
     const student = await Student.findOneAndUpdate(
-      { universityEmail },
+      { email },
       payload,
       { new: true, upsert: true }
     );
@@ -186,7 +186,7 @@ export const uploadResume = async (req, res) => {
 // -------------------------------------
 export const getStudentRecommendations = async (req, res) => {
   try {
-    const { studentId } = req.params;
+    const { id: studentId } = req.user;
     const student = await Student.findById(studentId).lean();
     if (!student)
       return res.status(404).json({ message: "Student not found" });
