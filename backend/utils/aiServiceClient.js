@@ -1,0 +1,146 @@
+﻿// Lightweight client to call the Python AI recommender service
+
+import fs from "fs/promises";
+import axios from "axios";
+import FormData from "form-data";
+
+const AI_SERVICE_URL = (process.env.AI_SERVICE_URL || "http://localhost:8000").replace(/\/+$/, "");
+const RECOMMEND_ENDPOINT = `${AI_SERVICE_URL}/recommend`;
+const PARSE_ENDPOINT = `${AI_SERVICE_URL}/parse_resume`;
+
+// ---------------------------------------------------------
+// SAFE ID
+// ---------------------------------------------------------
+const safeId = (value, prefix) => {
+  if (typeof value === "string" && value.trim()) return value;
+  if (value && typeof value.toString === "function") return value.toString();
+  return `${prefix}_${Math.random().toString(36).slice(2, 8)}`;
+};
+
+// ---------------------------------------------------------
+// EXTRACT STUDENT SKILLS CORRECTLY
+// (Do NOT let Node normalize. Let Python normalize instead.)
+// ---------------------------------------------------------
+const extractSkillsFromStudent = (student = {}) => {
+  const extract = student.resumeExtract || {};
+
+  const rawSources = [
+    ...(extract.skills || []),      // preferred
+    ...(extract.rawSkills || []),   // legacy
+    ...(student.skills || []),
+  ];
+
+  return Array.from(
+    new Set(
+      rawSources
+        .map((s) => (typeof s === "string" ? s.trim() : ""))
+        .filter(Boolean)
+    )
+  );
+};
+
+// ---------------------------------------------------------
+// STUDENT PAYLOAD → SENT TO AI SERVICE
+// ---------------------------------------------------------
+export const toAiStudentPayload = (student = {}) => {
+  const extract = student.resumeExtract || {};
+
+  const skills = extractSkillsFromStudent(student);
+  const domains =
+    (Array.isArray(extract.domains) && extract.domains.length
+      ? extract.domains
+      : []) ||
+    (Array.isArray(student.domains) && student.domains.length
+      ? student.domains
+      : []) ||
+    (Array.isArray(student.preferences?.domains)
+      ? student.preferences.domains
+      : []);
+  const experience =
+    Array.isArray(extract.experience) ? extract.experience : [];
+  const education =
+    Array.isArray(extract.education) ? extract.education : [];
+
+  const resumeText =
+    [
+      extract.summary || "",
+      ...(extract.experience || []).map((e) =>
+        typeof e === "string" ? e : e?.description || ""
+      ),
+      ...(extract.projects || extract.rawProjects || []).map((p) =>
+        typeof p === "string" ? p : p?.title || ""
+      ),
+    ]
+      .filter(Boolean)
+      .join("\n")
+      .trim() || extract.summary || "No resume text";
+
+  return {
+    id: safeId(student._id || student.id, "student"),
+
+    resume_text: resumeText,
+    skills,                      // ✔ raw skills
+    branch: student.branch || null,
+    domains,
+    gpa: student.cgpa || 0,
+    experience,
+    education,
+  };
+};
+
+// ---------------------------------------------------------
+// JOB PAYLOAD → SENT TO AI SERVICE
+// ---------------------------------------------------------
+export const toAiJobPayload = (job = {}) => {
+  return {
+    id: safeId(job._id || job.id, "job"),
+
+    title: job.title || "",
+    description: job.description || job.requirementsText || "",
+
+    skills: Array.isArray(job.skills) ? job.skills.map((s) => s.trim()) : [],
+    tools: Array.isArray(job.tools) ? job.tools.map((t) => t.trim()) : [],
+
+    company: job.company || "",
+
+    branch: job.branch || null,
+    domain: job.domain || null,
+  };
+};
+
+// ---------------------------------------------------------
+// CALL PYTHON AI RANKER
+// ---------------------------------------------------------
+export const callAiRecommender = async ({ student, jobs }) => {
+  const payload = {
+    student: toAiStudentPayload(student),
+    jobs: jobs.map(toAiJobPayload),
+  };
+
+  const res = await axios.post(RECOMMEND_ENDPOINT, payload, {
+    headers: { "Content-Type": "application/json" },
+  });
+
+  return res.data;
+};
+
+// ---------------------------------------------------------
+// PARSE RESUME VIA AI SERVICE
+// ---------------------------------------------------------
+export const parseResumeWithAI = async ({ filePath, originalName, mimeType }) => {
+  const buffer = await fs.readFile(filePath);
+  const form = new FormData();
+
+  form.append("file", buffer, {
+    filename: originalName || "resume.pdf",
+    contentType: mimeType || "application/pdf",
+  });
+
+  const res = await axios.post(PARSE_ENDPOINT, form, {
+    headers: form.getHeaders(),
+    maxContentLength: Infinity,
+    maxBodyLength: Infinity,
+  });
+
+  return res.data;
+};

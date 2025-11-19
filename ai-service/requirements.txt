@@ -1,0 +1,13 @@
+﻿fastapi
+uvicorn
+python-multipart
+
+pypdf
+numpy
+pandas
+xgboost
+sentence-transformers
+
+google-genai
+python-dotenv
+

@@ -1,0 +1,24 @@
+import { Router } from 'express';
+import {
+  createStudentProfile,
+  getStudents,
+  getMyProfile,
+  updateStudentProfile,
+  uploadResume,
+  getStudentRecommendations,
+} from '../controllers/studentController.js';
+import fetchuser from '../middleware/fetchuser.js';
+import { resumeUpload } from '../middleware/resumeUpload.js';
+
+const router = Router();
+
+router.get('/', getStudents);
+router.post('/', createStudentProfile);
+
+router.get('/me', fetchuser, getMyProfile);
+router.patch('/me', fetchuser, updateStudentProfile);
+router.post('/me/resume', fetchuser, resumeUpload.single('resume'), uploadResume);
+
+router.get('/:studentId/recommendations', getStudentRecommendations);
+
+export default router;
