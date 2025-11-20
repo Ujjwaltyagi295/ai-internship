@@ -7,8 +7,7 @@ import { parseJobText } from "../services/jobParser.js";
 export const createJobFromText = async (req, res) => {
   try {
     // 1. Get the raw text input
-    // Example input: "Looking for a React intern 2025 batch knows Figma salary 15k"
-    const { text, postedBy } = req.body; 
+    const { text } = req.body; // 'postedBy' is no longer needed if not saving
 
     if (!text) return res.status(400).json({ error: "Text is required" });
 
@@ -20,36 +19,45 @@ export const createJobFromText = async (req, res) => {
       return res.status(500).json({ error: "AI could not structure this data." });
     }
 
-    // 3. Create the Mongoose Object
-    // We merge the AI data with specific logic (like externalApply)
-    const newJob = new Job({
-      ...aiData, // Spread all AI fields (title, skills, tools, etc.)
-      
-      postedBy: postedBy, // The ID of the user posting this
-      externalApply: !!aiData.applyUrl, // True if AI found a URL
-      requirementsText: text, // Save original text as backup
-    });
+    // 3. Prepare Response Object (No DB Saving)
+    // We construct the object exactly how it would look, but strictly for the response.
+    const structuredJob = {
+      ...aiData, 
+      externalApply: !!aiData.applyUrl, // Keep this logic so the frontend sees the derived boolean
+      requirementsText: text,
+    };
 
-    // 4. Save to DB
-    await newJob.save();
-
-    res.status(201).json({
+    // 4. Return the data
+    // Changed status from 201 (Created) to 200 (OK) since nothing is stored.
+    res.status(200).json({
       success: true,
-      message: "Job created successfully!",
-      data: newJob
+      message: "Job data structured successfully.",
+      data: structuredJob
     });
 
   } catch (error) {
-    console.error("Error creating job:", error);
+    console.error("Error analyzing job text:", error);
     res.status(500).json({ error: error.message });
   }
 };
 // Admin: create job
 export const createJob = async (req, res) => {
   try {
-    const payload = { ...req.body };
+    // 1. Extract the 'data' object from req.body
+    // If the frontend sends { data: { ... } }, we use that. 
+    // Otherwise, we fallback to req.body for backward compatibility.
+    const sourceData = req.body.data || req.body;
+
+    console.log("Received Payload:", sourceData);
+
+    // 2. Initialize payload
+    const payload = { ...sourceData };
+
+    // 3. Attach User ID
     payload.postedBy = req.user.id;
 
+    // 4. Sanitize Arrays (Skills, Tools, Batch, Branches)
+    // We ensure these are arrays and filter out empty values
     payload.skills = Array.isArray(payload.skills)
       ? payload.skills.filter(Boolean)
       : [];
@@ -57,19 +65,30 @@ export const createJob = async (req, res) => {
     payload.tools = Array.isArray(payload.tools)
       ? payload.tools.filter(Boolean)
       : [];
+    
+    payload.batchAllowed = Array.isArray(payload.batchAllowed) 
+      ? payload.batchAllowed 
+      : [];
 
+    payload.allowedBranches = Array.isArray(payload.allowedBranches) 
+      ? payload.allowedBranches 
+      : [];
+
+    // 5. Handle Text Fields
     payload.requirementsText =
       payload.requirementsText || payload.description || "";
 
-    // Normalize branch/domain to lowercase for matching
+    // 6. Normalize specific fields to lowercase for better search/matching
     if (payload.branch) payload.branch = payload.branch.toLowerCase();
     if (payload.domain) payload.domain = payload.domain.toLowerCase();
 
+    // 7. Create Job
     const job = await Job.create(payload);
 
-    res.status(201).json({ msg: "Job created", job });
+    res.status(201).json({ msg: "Job created successfully", job });
   } catch (err) {
-    res.status(500).json({ error: "Job creation failed" });
+    console.error("Job creation error:", err); // Log the actual error for debugging
+    res.status(500).json({ error: "Job creation failed", details: err.message });
   }
 };
 
@@ -110,7 +129,8 @@ export const getJobById = async (req, res) => {
  */
 export const applyToJob = async (req, res) => {
   try {
-    const { jobId } = req.body;
+   const { jobId } = req.body;
+    console.log(req.body)
     if (!jobId) return res.status(400).json({ error: "jobId required" });
 
     const job = await Job.findById(jobId);

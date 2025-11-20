@@ -1,6 +1,6 @@
 "use client"
 
-import JobForm from "../JobForm"
+import JobForm from "./JobForm"
 
 
 export default function Home() {
