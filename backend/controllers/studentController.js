@@ -353,13 +353,14 @@ export const getStudentRecommendations = async (req, res) => {
       jobs: eligibleJobs,
     });
 
-    // 5) Map AI response back to job info
+    // 5) Map AI response back to job info (including full job details)
     const recs = (aiResponse.recommendations || []).map((r) => {
       const job = eligibleJobs.find(
         (j) => j._id.toString() === r.job_id
       );
       return {
         jobId: job?._id,
+        job, // 🔹 full job details
         title: job?.title,
         company: job?.company,
         jobType: job?.jobType,
@@ -381,6 +382,7 @@ export const getStudentRecommendations = async (req, res) => {
     return res.status(500).json({ message: "Failed to load recommendations" });
   }
 };
+
 
 
 export const getStudentMatchScore = async (req, res) => {
@@ -424,7 +426,9 @@ export const getStudentMatchScore = async (req, res) => {
       return res.json({
         studentId,
         jobId,
+        job, // 🔹 still return job details
         matchScore: 0,
+        aiScore: null,
         reasons: [],
         message: "Student not eligible for this job",
       });
@@ -452,6 +456,7 @@ export const getStudentMatchScore = async (req, res) => {
     return res.json({
       studentId,
       jobId,
+      job, // 🔹 full job details
       title: job.title,
       company: job.company,
       jobType: job.jobType,
