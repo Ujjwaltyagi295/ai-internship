@@ -54,6 +54,8 @@ const studentSchema = new mongoose.Schema(
       size: Number,
       storagePath: String,
       uploadedAt: Date,
+      cloudinaryUrl: String,
+      cloudinaryPublicId: String,
     },
 
     resumeExtract: resumeExtractSchema,

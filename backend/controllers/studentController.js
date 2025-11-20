@@ -8,6 +8,7 @@ import {
   callAiRecommender,
   parseResumeWithAI,
 } from "../utils/aiServiceClient.js";
+import cloudinary from "../utils/cloudinary.js";
 
 // -------------------------------------
 // Helpers
@@ -150,16 +151,45 @@ export const uploadResume = async (req, res) => {
       return res.status(400).json({ error: "Resume file is required" });
     }
 
+    // 0) Delete old Cloudinary resume if exists
+    const existingResume = await Student.findById(studentId).select("resume");
+
+    if (existingResume?.resume?.cloudinaryPublicId) {
+      try {
+        await cloudinary.uploader.destroy(existingResume.resume.cloudinaryPublicId, {
+          resource_type: "raw",
+        });
+        console.log("Old Cloudinary resume deleted:", existingResume.resume.cloudinaryPublicId);
+      } catch (err) {
+        console.warn("Failed to delete old Cloudinary file:", err.message);
+      }
+    }
+
+    // 1) Upload to Cloudinary
+    let cloudinaryResult;
+    try {
+      cloudinaryResult = await cloudinary.uploader.upload(req.file.path, {
+        folder: "resumes",           // optional: folder name in Cloudinary
+        resource_type: "raw",        // since it's likely a PDF/DOC
+      });
+    } catch (err) {
+      console.error("Cloudinary upload error:", err);
+      return res.status(500).json({ error: "Failed to upload resume to cloud" });
+    }
+
+    // 2) Build resume metadata (store Cloudinary info + optional local path)
+    console.log("Cloudinary upload result:", cloudinaryResult);
     const resumeMeta = {
-      fileName: req.file.filename,
       originalName: req.file.originalname,
       mimeType: req.file.mimetype,
       size: req.file.size,
-      storagePath: req.file.path ? path.relative(process.cwd(), req.file.path) : undefined,
       uploadedAt: new Date(),
-    };
+      cloudinaryUrl: cloudinaryResult.secure_url,
+      cloudinaryPublicId: cloudinaryResult.public_id,
+    };  
 
-    // 1) Save resume metadata on Student
+
+    // 3) Save resume metadata on Student
     const student = await Student.findByIdAndUpdate(
       studentId,
       { resume: resumeMeta },
@@ -170,7 +200,7 @@ export const uploadResume = async (req, res) => {
       return res.status(404).json({ error: "Student not found" });
     }
 
-    // 2) Attempt AI parsing
+    // 4) Attempt AI parsing using local file path (your existing logic)
     let parsed = null;
     try {
       parsed = await parseResumeWithAI({
@@ -180,13 +210,22 @@ export const uploadResume = async (req, res) => {
       });
     } catch (err) {
       console.warn("AI parse failed:", err?.message || err);
+
+      // Optional: delete local file after use
+      try {
+        fs.unlinkSync(req.file.path);
+      } catch (e) {
+        console.warn("Could not delete local resume file:", e.message);
+      }
+
       return res.json({
-        message: "Resume uploaded, but parsing failed. Resume metadata saved.",
+        message: "Resume uploaded to cloud, but parsing failed. Metadata saved.",
         student,
+        resumeMeta,
       });
     }
 
-    // 3) Build parsed resume document
+    // 5) Build parsed resume document
     const extracted = parsed?.extracted || parsed?.parsed || {};
     const parsedResumeDoc = {
       student: studentId,
@@ -197,7 +236,8 @@ export const uploadResume = async (req, res) => {
         tools: extracted.tools || [],
         experience: extracted.experience || [],
         education: extracted.education || [],
-        summary: parsed?.raw_text?.replace(/\s+/g, " ").trim().slice(0, 250) || "",
+        summary:
+          parsed?.raw_text?.replace(/\s+/g, " ").trim().slice(0, 250) || "",
         rawText: parsed?.raw_text || "",
       },
       skillEmbedding: Array.isArray(parsed?.embedding) ? parsed.embedding : [],
@@ -208,32 +248,42 @@ export const uploadResume = async (req, res) => {
       },
     };
 
-    // 4) Remove existing parsed resume for this student
+    // 6) Remove existing parsed resume for this student
     await ParsedResume.deleteOne({ student: studentId });
 
-    // 5) Insert new parsed resume
+    // 7) Insert new parsed resume
     const createdParsedResume = await ParsedResume.create(parsedResumeDoc);
 
-    // 6) Link parsed resume id back to student
+    // 8) Link parsed resume id back to student
     const updatedStudent = await Student.findByIdAndUpdate(
       studentId,
       { parsedResume: createdParsedResume._id },
       { new: true }
     );
 
+    // Optional: delete local file after Cloudinary + parsing done
+    try {
+      if (req.file?.path && fs.existsSync(req.file.path)) {
+        fs.unlinkSync(req.file.path);
+      }
+    } catch (e) {
+      console.warn("Could not delete local resume file:", e.message);
+    }
+
     return res.json({
-      message: "Resume processed and parsed data saved.",
+      message: "Resume uploaded to Cloudinary and parsed data saved.",
       student: updatedStudent,
       parsedResume: createdParsedResume,
     });
   } catch (err) {
     console.error("uploadResume error:", err);
-    return res.status(500).json({ 
-      error: "Could not upload resume", 
-      details: err.message 
+    return res.status(500).json({
+      error: "Could not upload resume",
+      details: err.message,
     });
   }
 };
+
 
 // -------------------------------------
 // Resume Delete
