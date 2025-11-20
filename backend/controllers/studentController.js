@@ -381,3 +381,89 @@ export const getStudentRecommendations = async (req, res) => {
     return res.status(500).json({ message: "Failed to load recommendations" });
   }
 };
+
+
+export const getStudentMatchScore = async (req, res) => {
+  try {
+    const studentId = ensureStudentId(req, res);
+    if (!studentId) return;
+
+    const { jobId } = req.body;
+    if (!jobId) {
+      return res.status(400).json({ message: "jobId is required" });
+    }
+
+    // 1) Fetch parsed resume for the student
+    const parsed = await ParsedResume.findOne({ student: studentId })
+      .select("resumeExtract skillEmbedding batch branch cgpa student")
+      .lean();
+
+    if (!parsed) {
+      return res.status(404).json({
+        message: "Parsed resume not found. Please upload and parse your resume first.",
+      });
+    }
+
+    // 2) Fetch the single job
+    const job = await Job.findById(jobId).lean();
+    if (!job) {
+      return res.status(404).json({ message: "Job not found" });
+    }
+
+    // 3) Check eligibility for that SINGLE job
+    const eligible = isEligibleForJob(
+      {
+        cgpa: parsed.cgpa,
+        batch: parsed.batch,
+        branch: parsed.branch,
+      },
+      job
+    );
+
+    if (!eligible) {
+      return res.json({
+        studentId,
+        jobId,
+        matchScore: 0,
+        reasons: [],
+        message: "Student not eligible for this job",
+      });
+    }
+
+    // 4) Build AI student payload
+    const aiStudentPayload = {
+      _id: studentId,
+      cgpa: parsed.cgpa,
+      batch: parsed.batch,
+      branch: parsed.branch,
+      resumeExtract: parsed.resumeExtract,
+      skillEmbedding: parsed.skillEmbedding,
+    };
+
+    // 5) Call AI recommender for ONLY ONE job
+    const aiResponse = await callAiRecommender({
+      student: aiStudentPayload,
+      jobs: [job], // SINGLE JOB
+    });
+
+    // 6) Extract result for this job
+    const rec = aiResponse.recommendations?.[0];
+
+    return res.json({
+      studentId,
+      jobId,
+      title: job.title,
+      company: job.company,
+      jobType: job.jobType,
+      matchScore: rec ? Math.round(rec.match_percent || 0) : 0,
+      aiScore: rec?.score || null,
+      reasons: rec?.reasons || [],
+      usedRanker: aiResponse.used_ranker || false,
+      modelVersion: aiResponse.model_version || null,
+    });
+
+  } catch (err) {
+    console.error("Match Score Error:", err);
+    return res.status(500).json({ message: "Failed to load match score" });
+  }
+};

@@ -8,6 +8,7 @@ import {
   getStudentRecommendations,
   deleteResume,
   getMyResume,
+  getStudentMatchScore
 } from '../controllers/studentController.js';
 import fetchuser from '../middleware/fetchuser.js';
 import { resumeUpload } from '../middleware/resumeUpload.js';
@@ -18,7 +19,7 @@ router.get('/', getStudents);
 router.post('/', createStudentProfile);
 
 router.get('/me', fetchuser, getMyProfile);
-
+router.get('/me/matchscore', fetchuser, getStudentMatchScore); // extracts match score with single job and takes jobId as body param
 router.get('/me/resume', fetchuser, getMyResume);
 router.patch('/me', fetchuser, updateStudentProfile);
 router.post('/me/resume', fetchuser, resumeUpload.single('resume'), uploadResume);

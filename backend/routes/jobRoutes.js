@@ -12,7 +12,6 @@ router.get("/:id", getJobById);  //might not use
 
 // Admin-only create
 router.post("/", fetchuser, restrictRole("admin"), createJob);
-
 // Apply (student)
 router.post("/apply", fetchuser, applyToJob);
 
