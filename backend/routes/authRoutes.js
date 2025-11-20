@@ -15,7 +15,7 @@ router.get("/me", fetchuser, (req, res) => {
   res.json({ 
     userId: req.user.id,
     role: req.user.role 
-  });
+  }); 
 });
 
 export default router;

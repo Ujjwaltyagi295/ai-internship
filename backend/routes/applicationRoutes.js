@@ -1,10 +1,11 @@
 import { Router } from 'express';
-import fetchuser from '../middleware/fetchuser.js';
+import {fetchuser,restrictRole} from '../middleware/fetchuser.js';
 import {
   createApplication,
   getStudentApplications,
   getJobApplications,
 } from '../controllers/applicationController.js';
+import restrictRole from '../middleware/restrictRole.js';
 
 const router = Router();
 
@@ -15,6 +16,6 @@ router.post('/', fetchuser, createApplication);
 router.get('/student', fetchuser, getStudentApplications);
 
 // Job applications (admin/recruiter area) – no studentId needed
-router.get('/job/:jobId', getJobApplications);
+router.get('/job/:jobId',restrictRole("admin"),getJobApplications);
 
 export default router;
