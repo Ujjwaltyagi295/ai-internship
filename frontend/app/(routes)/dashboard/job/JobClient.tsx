@@ -2,12 +2,23 @@
 
 import { useJobs } from "@/hooks/useJobs";
 import { JobCard } from "@/components/jobCard";
+import { JobCardShimmer } from "@/components/jobcardShimmer";
 
 export default function JobsClient() {
   const { data:jobs, isLoading, isError } = useJobs();
 
 console.log(jobs)
-  if (isLoading) return <div>Loading jobs...</div>;
+  if (isLoading) return <div> <main className="min-h-screen bg-gray-50 p-4 lg:p-6">
+      <div className="max-w-6xl mx-auto">
+        <h1 className="text-3xl font-bold text-gray-900 mb-8">Job Listings</h1>
+
+        <div className="space-y-4">
+          <JobCardShimmer/>
+          <JobCardShimmer />
+          <JobCardShimmer />
+        </div>
+      </div>
+    </main></div>;
   if (isError) return <div>Failed to load jobs.</div>;
 
   return (
