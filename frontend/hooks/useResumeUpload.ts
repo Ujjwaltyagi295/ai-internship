@@ -1,4 +1,4 @@
-// hooks/useResumeUpload.ts
+
 "use client";
 
 import { students } from "@/app/api/student";

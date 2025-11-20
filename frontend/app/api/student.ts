@@ -2,6 +2,7 @@
 import API from "@/config/apiClient";
 
 export const students = {
+ 
   uploadResume: async (file: File) => {
     const formData = new FormData();
     formData.append("resume", file); 

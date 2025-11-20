@@ -23,9 +23,11 @@ const buildProfileUpdates = (body = {}) =>
 
 const normalizeLower = (v) =>
   typeof v === "string" ? v.trim().toLowerCase() : "";
-
 const isEligibleForJob = (student = {}, job = {}) => {
-  const studentCgpa = Number(student.cgpa) || 0;
+  const studentCgpa =
+    student.cgpa !== undefined && student.cgpa !== null && student.cgpa !== ''
+      ? Number(student.cgpa)
+      : null;
   const studentBatch = normalizeLower(student.batch);
   const studentBranch = normalizeLower(student.branch);
 
@@ -36,9 +38,21 @@ const isEligibleForJob = (student = {}, job = {}) => {
     ? job.allowedBranches.map(normalizeLower)
     : [];
 
-  if (job.minCgpa && studentCgpa < job.minCgpa) return false;
-  if (jobBatches.length && !jobBatches.includes(studentBatch)) return false;
-  if (allowedBranches.length && !allowedBranches.includes(studentBranch))
+  // Only check CGPA if the student's CGPA is present!
+  if (
+    job.minCgpa !== undefined &&
+    job.minCgpa !== null &&
+    studentCgpa !== null &&
+    studentCgpa < job.minCgpa
+  )
+    return false;
+
+  // Only check batch if student has given batch
+  if (jobBatches.length && studentBatch && !jobBatches.includes(studentBatch))
+    return false;
+
+  // Only check branch if student has given branch
+  if (allowedBranches.length && studentBranch && !allowedBranches.includes(studentBranch))
     return false;
 
   return true;

@@ -11,6 +11,7 @@ import {
   DialogTrigger,
 } from "@/components/ui/dialog";
 import { useResumeUpload } from "@/hooks/useResumeUpload";
+import { TextShimmer } from "./motion-primitives/text-shimmer";
 
 interface UploadResumeProps {
   onUploadSuccess?: (data: any) => void;
@@ -21,7 +22,7 @@ export default function UploadResume({ onUploadSuccess }: UploadResumeProps) {
   const [isDragging, setIsDragging] = useState(false);
   const [selectedFile, setSelectedFile] = useState<File | null>(null);
   const [validationError, setValidationError] = useState<string | null>(null);
-  
+
   const uploadMutation = useResumeUpload();
 
   const handleDragEnter = (e: React.DragEvent) => {
@@ -74,9 +75,11 @@ export default function UploadResume({ onUploadSuccess }: UploadResumeProps) {
       "application/msword",
       "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
     ];
-    
+
     if (!allowedTypes.includes(file.type)) {
-      setValidationError("Please upload a PDF or Word document (.pdf, .doc, .docx)");
+      setValidationError(
+        "Please upload a PDF or Word document (.pdf, .doc, .docx)"
+      );
       setSelectedFile(null);
       return false;
     }
@@ -100,7 +103,7 @@ export default function UploadResume({ onUploadSuccess }: UploadResumeProps) {
         setOpen(false);
         setSelectedFile(null);
         setValidationError(null);
-        
+
         setTimeout(() => {
           uploadMutation.reset();
         }, 1000);
@@ -134,7 +137,8 @@ export default function UploadResume({ onUploadSuccess }: UploadResumeProps) {
         <DialogHeader>
           <DialogTitle>Upload Resume</DialogTitle>
           <DialogDescription>
-            Upload your resume to get started with job matching and analysis. Accepted formats: PDF, DOC, DOCX (Max 10MB)
+            Upload your resume to get started with job matching and analysis.
+            Accepted formats: PDF, DOC, DOCX (Max 10MB)
           </DialogDescription>
         </DialogHeader>
 
@@ -148,7 +152,9 @@ export default function UploadResume({ onUploadSuccess }: UploadResumeProps) {
                   : validationError
                   ? "bg-red-50 border-red-300"
                   : "bg-gray-50 border-gray-300 hover:bg-gray-100"
-              } ${uploadMutation.isPending ? "pointer-events-none opacity-50" : ""}`}
+              } ${
+                uploadMutation.isPending ? "pointer-events-none opacity-50" : ""
+              }`}
               onDragEnter={handleDragEnter}
               onDragOver={handleDragOver}
               onDragLeave={handleDragLeave}
@@ -158,21 +164,26 @@ export default function UploadResume({ onUploadSuccess }: UploadResumeProps) {
                 {uploadMutation.isPending ? (
                   <>
                     <Loader2 className="w-10 h-10 mb-4 text-emerald-500 animate-spin" />
-                    <p className="mb-2 text-sm text-gray-700 font-semibold">
-                      Uploading and analyzing resume...
-                    </p>
+                  
+                      <TextShimmer className="font-mono text-sm" duration={1}>
+                        Uploading and analyzing resume...
+                      </TextShimmer>
+              
                     <p className="text-xs text-gray-500">Please wait</p>
                   </>
                 ) : (
                   <>
                     <Upload className="w-10 h-10 mb-4 text-gray-400" />
                     <p className="mb-2 text-sm text-gray-700">
-                      <span className="font-semibold">Click to upload</span> or drag and drop
+                      <span className="font-semibold">Click to upload</span> or
+                      drag and drop
                     </p>
-                    <p className="text-xs text-gray-500">PDF, DOC, DOCX (MAX. 10MB)</p>
+                    <p className="text-xs text-gray-500">
+                      PDF, DOC, DOCX (MAX. 10MB)
+                    </p>
                   </>
                 )}
-                
+
                 {selectedFile && !uploadMutation.isPending && (
                   <div className="mt-4 p-3 bg-emerald-50 border border-emerald-200 rounded-lg">
                     <p className="text-sm text-emerald-700 font-medium">
@@ -208,7 +219,8 @@ export default function UploadResume({ onUploadSuccess }: UploadResumeProps) {
             <div className="mt-3 flex items-start gap-2 text-red-600">
               <AlertCircle className="w-5 h-5 flex-shrink-0 mt-0.5" />
               <p className="text-sm font-medium">
-                {uploadMutation.error?.response?.data?.error || "Upload failed. Please try again."}
+                {uploadMutation.error?.response?.data?.error ||
+                  "Upload failed. Please try again."}
               </p>
             </div>
           )}
@@ -229,7 +241,7 @@ export default function UploadResume({ onUploadSuccess }: UploadResumeProps) {
               {uploadMutation.isPending ? (
                 <>
                   <Loader2 className="w-4 h-4 animate-spin" />
-                  Uploading...
+                  Uploading..
                 </>
               ) : (
                 <>
