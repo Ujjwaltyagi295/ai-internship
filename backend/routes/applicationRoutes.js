@@ -1,5 +1,5 @@
 import { Router } from 'express';
-import {fetchuser,restrictRole} from '../middleware/fetchuser.js';
+import fetchuser from '../middleware/fetchuser.js';
 import {
   createApplication,
   getStudentApplications,
