@@ -301,19 +301,34 @@ export const getMyResume = async (req, res) => {
 export const getStudentRecommendations = async (req, res) => {
   try {
     const studentId = ensureStudentId(req, res);
+    console.log("Student ID for recommendations:", studentId);
     if (!studentId) return;
 
-    const student = await Student.findById(studentId).lean();
-    if (!student) {
-      return res.status(404).json({ error: "Student not found" });
+    // 1) Fetch parsed resume for this student
+    const parsed = await ParsedResume.findOne({ student: studentId })
+      .select("resumeExtract skillEmbedding batch branch cgpa student")
+      .lean();
+
+    if (!parsed) {
+      return res.status(404).json({
+        message: "Parsed resume not found. Please upload and parse your resume first.",
+      });
     }
 
+    // 2) Fetch all jobs
     const jobs = await Job.find().lean();
 
+    // 3) Use batch/branch/cgpa from parsed resume for eligibility
     const eligibleJobs = jobs.filter((job) =>
-      isEligibleForJob(student, job)
+      isEligibleForJob(
+        {
+          cgpa: parsed.cgpa,
+          batch: parsed.batch,
+          branch: parsed.branch,
+        },
+        job
+      )
     );
-
     if (!eligibleJobs.length) {
       return res.json({
         studentId,
@@ -323,11 +338,22 @@ export const getStudentRecommendations = async (req, res) => {
       });
     }
 
+    // 4) Build "student" payload for AI from parsed resume data
+    const aiStudentPayload = {
+      _id: studentId,
+      cgpa: parsed.cgpa,
+      batch: parsed.batch,
+      branch: parsed.branch,
+      resumeExtract: parsed.resumeExtract,
+      skillEmbedding: parsed.skillEmbedding,
+    };
+
     const aiResponse = await callAiRecommender({
-      student,
+      student: aiStudentPayload,
       jobs: eligibleJobs,
     });
 
+    // 5) Map AI response back to job info
     const recs = (aiResponse.recommendations || []).map((r) => {
       const job = eligibleJobs.find(
         (j) => j._id.toString() === r.job_id
@@ -343,7 +369,7 @@ export const getStudentRecommendations = async (req, res) => {
       };
     });
 
-    res.json({
+    return res.json({
       studentId,
       recommendations: recs,
       count: recs.length,
@@ -352,6 +378,6 @@ export const getStudentRecommendations = async (req, res) => {
     });
   } catch (err) {
     console.error("Recommendation error:", err);
-    res.status(500).json({ error: "Failed to load recommendations" });
+    return res.status(500).json({ message: "Failed to load recommendations" });
   }
 };
