@@ -1,9 +1,25 @@
 "use client"
 
 import * as React from "react"
+import { z } from "zod"
+import {
+  ColumnDef,
+  ColumnFiltersState,
+  SortingState,
+  VisibilityState,
+  flexRender,
+  getCoreRowModel,
+  getFacetedRowModel,
+  getFacetedUniqueValues,
+  getFilteredRowModel,
+  getPaginationRowModel,
+  getSortedRowModel,
+  useReactTable,
+} from "@tanstack/react-table"
+
+// Icons
 import {
   IconCheck,
-  IconChevronDown,
   IconChevronLeft,
   IconChevronRight,
   IconCircleCheckFilled,
@@ -12,47 +28,39 @@ import {
   IconClockFilled,
   IconDotsVertical,
   IconEye,
-  IconLayoutColumns,
   IconMail,
+  IconSearch,
   IconX,
-  IconSearch, // Added search icon
 } from "@tabler/icons-react"
-import {
-  Column,
-  ColumnDef,
-  ColumnFiltersState,
-  flexRender,
-  getCoreRowModel,
-  getFacetedRowModel,
-  getFacetedUniqueValues,
-  getFilteredRowModel,
-  getPaginationRowModel,
-  getSortedRowModel,
-  SortingState,
-  useReactTable,
-  VisibilityState,
-} from "@tanstack/react-table"
+
+// Utils
 import { cn } from "@/lib/utils"
-import { z } from "zod"
 
 // UI Components
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import { Checkbox } from "@/components/ui/checkbox"
-import { Input } from "@/components/ui/input" // Ensure you have this component
+import { Input } from "@/components/ui/input"
+import { Separator } from "@/components/ui/separator"
+import {
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from "@/components/ui/table"
 import {
   Command,
   CommandEmpty,
   CommandGroup,
-  CommandInput,
   CommandItem,
   CommandList,
   CommandSeparator,
 } from "@/components/ui/command"
 import {
   DropdownMenu,
-  DropdownMenuCheckboxItem,
   DropdownMenuContent,
   DropdownMenuItem,
   DropdownMenuSeparator,
@@ -63,19 +71,38 @@ import {
   PopoverContent,
   PopoverTrigger,
 } from "@/components/ui/popover"
-import { Separator } from "@/components/ui/separator"
-import {
-  Table,
-  TableBody,
-  TableCell,
-  TableHead,
-  TableHeader,
-  TableRow,
-} from "@/components/ui/table"
 
-// --- 1. Faceted Filter Component ---
+// --- 1. Data Types & Schema ---
+const applicantSchema = z.object({
+  id: z.number(),
+  name: z.string(),
+  email: z.string(),
+  initials: z.string().optional(),
+  company: z.string(),
+  dateApplied: z.string(),
+  matchScore: z.number(),
+  status: z.string(),
+})
+
+type Applicant = z.infer<typeof applicantSchema>
+
+// --- 2. Sample Data ---
+const SAMPLE_DATA: Applicant[] = [
+  { id: 1, name: "Suryansh", email: "suryansh@gmail.com", initials: "Su", company: "Google", dateApplied: "Apr 30, 2025", matchScore: 92, status: "Accepted" },
+  { id: 2, name: "Prajwal", email: "prajwal@gmail.com", initials: "Pr", company: "Microsoft", dateApplied: "Apr 28, 2025", matchScore: 45, status: "Pending" },
+  { id: 3, name: "Amelia Rose", email: "amelia.r@example.com", initials: "AR", company: "Amazon", dateApplied: "Apr 25, 2025", matchScore: 12, status: "Rejected" },
+  { id: 4, name: "Liam Smith", email: "liam.tech@example.com", initials: "LS", company: "Meta", dateApplied: "Apr 22, 2025", matchScore: 88, status: "Accepted" },
+  { id: 5, name: "Olivia Jay", email: "olivia.j@example.com", initials: "OJ", company: "Apple", dateApplied: "Apr 20, 2025", matchScore: 78, status: "Pending" },
+  { id: 6, name: "Noah Brown", email: "noah.b@example.com", initials: "NB", company: "Netflix", dateApplied: "Apr 18, 2025", matchScore: 65, status: "Pending" },
+  { id: 7, name: "Sophia Green", email: "sophia.green@example.com", initials: "SG", company: "Tesla", dateApplied: "Apr 16, 2025", matchScore: 95, status: "Accepted" },
+  { id: 8, name: "James Bond", email: "007@example.com", initials: "JB", company: "SpaceX", dateApplied: "Apr 15, 2025", matchScore: 99, status: "Pending" },
+  { id: 9, name: "Lucas White", email: "lucas.w@example.com", initials: "LW", company: "Stripe", dateApplied: "Apr 12, 2025", matchScore: 30, status: "Rejected" },
+  { id: 10, name: "Mia Wong", email: "mia.wong@example.com", initials: "MW", company: "Airbnb", dateApplied: "Apr 10, 2025", matchScore: 72, status: "Pending" },
+]
+
+// --- 3. Filter Component (No Search Input) ---
 interface DataTableFacetedFilterProps<TData, TValue> {
-  column?: Column<TData, TValue>
+  column?: any
   title?: string
   options: {
     label: string
@@ -84,7 +111,7 @@ interface DataTableFacetedFilterProps<TData, TValue> {
   }[]
 }
 
-export function DataTableFacetedFilter<TData, TValue>({
+function DataTableFacetedFilter<TData, TValue>({
   column,
   title,
   options,
@@ -101,18 +128,12 @@ export function DataTableFacetedFilter<TData, TValue>({
           {selectedValues?.size > 0 && (
             <>
               <Separator orientation="vertical" className="mx-2 h-4" />
-              <Badge
-                variant="secondary"
-                className="rounded-sm px-1 font-normal lg:hidden"
-              >
+              <Badge variant="secondary" className="rounded-sm px-1 font-normal lg:hidden">
                 {selectedValues.size}
               </Badge>
               <div className="hidden space-x-1 lg:flex">
                 {selectedValues.size > 2 ? (
-                  <Badge
-                    variant="secondary"
-                    className="rounded-sm px-1 font-normal"
-                  >
+                  <Badge variant="secondary" className="rounded-sm px-1 font-normal">
                     {selectedValues.size} selected
                   </Badge>
                 ) : (
@@ -135,7 +156,6 @@ export function DataTableFacetedFilter<TData, TValue>({
       </PopoverTrigger>
       <PopoverContent className="w-[200px] p-0" align="start">
         <Command>
-          <CommandInput placeholder={title} />
           <CommandList>
             <CommandEmpty>No results found.</CommandEmpty>
             <CommandGroup>
@@ -199,19 +219,25 @@ export function DataTableFacetedFilter<TData, TValue>({
   )
 }
 
-// --- 2. Schema & Columns ---
-export const schema = z.object({
-  id: z.number(),
-  name: z.string(),
-  email: z.string(),
-  initials: z.string(),
-  role: z.string(),
-  dateApplied: z.string(),
-  matchScore: z.number(),
-  status: z.enum(["Accepted", "Pending", "Rejected"]),
-})
+// --- 4. Table Configuration ---
+const statusOptions = [
+  { label: "Accepted", value: "Accepted", icon: IconCircleCheckFilled },
+  { label: "Pending", value: "Pending", icon: IconClockFilled },
+  { label: "Rejected", value: "Rejected", icon: IconCircleXFilled },
+]
 
-type Applicant = z.infer<typeof schema>
+const companyOptions = [
+  { label: "Google", value: "Google" },
+  { label: "Microsoft", value: "Microsoft" },
+  { label: "Amazon", value: "Amazon" },
+  { label: "Meta", value: "Meta" },
+  { label: "Apple", value: "Apple" },
+  { label: "Netflix", value: "Netflix" },
+  { label: "Tesla", value: "Tesla" },
+  { label: "SpaceX", value: "SpaceX" },
+  { label: "Stripe", value: "Stripe" },
+  { label: "Airbnb", value: "Airbnb" },
+]
 
 const columns: ColumnDef<Applicant>[] = [
   {
@@ -220,8 +246,11 @@ const columns: ColumnDef<Applicant>[] = [
       <div className="flex items-center justify-center">
         <Checkbox
           checked={
-            table.getIsAllPageRowsSelected() ||
-            (table.getIsSomePageRowsSelected() && "indeterminate")
+            table.getIsAllPageRowsSelected()
+              ? true
+              : table.getIsSomePageRowsSelected()
+              ? "indeterminate"
+              : false
           }
           onCheckedChange={(value) => table.toggleAllPageRowsSelected(!!value)}
           aria-label="Select all"
@@ -243,34 +272,38 @@ const columns: ColumnDef<Applicant>[] = [
   },
   {
     accessorKey: "name",
-    header: "Applicant Name", // Updated Header
+    header: "Applicant Name",
+    enableHiding: false,
     cell: ({ row }) => {
+      const name = (row.getValue("name") as string) || "No Name"
+      const email = row.original.email || "No Email"
+      const initials = row.original.initials || name.slice(0, 2).toUpperCase()
+
       return (
-        <div className="flex items-center gap-3">
-          <Avatar className="h-9 w-9 bg-muted/50">
+        <div className="flex items-center gap-3 min-w-[150px]">
+          <Avatar className="h-9 w-9 bg-muted/50 border">
             <AvatarImage src="" />
-            <AvatarFallback className="bg-primary/10 text-primary font-semibold text-xs">
-              {row.original.initials}
+            <AvatarFallback className="bg-primary/10 text-primary font-bold text-xs">
+              {initials}
             </AvatarFallback>
           </Avatar>
           <div className="flex flex-col">
-            <span className="text-sm font-semibold text-foreground">
-              {row.original.name}
+            <span className="text-sm font-bold text-foreground truncate">
+              {name}
             </span>
-            <span className="text-muted-foreground text-xs">
-              {row.original.email}
+            <span className="text-xs text-muted-foreground truncate">
+              {email}
             </span>
           </div>
         </div>
       )
     },
-    enableHiding: false,
   },
   {
     accessorKey: "matchScore",
     header: "Match Score",
     cell: ({ row }) => {
-      const score = row.original.matchScore
+      const score = row.original.matchScore || 0
       let colorClass = "bg-red-500"
       if (score >= 80) colorClass = "bg-emerald-500"
       else if (score >= 50) colorClass = "bg-amber-500"
@@ -291,11 +324,11 @@ const columns: ColumnDef<Applicant>[] = [
     },
   },
   {
-    accessorKey: "role",
-    header: "Applied Role",
+    accessorKey: "company",
+    header: "Company Name",
     cell: ({ row }) => (
       <Badge variant="outline" className="font-normal text-muted-foreground">
-        {row.original.role}
+        {row.original.company || "N/A"}
       </Badge>
     ),
     filterFn: (row, id, value) => {
@@ -307,7 +340,7 @@ const columns: ColumnDef<Applicant>[] = [
     header: "Date Applied",
     cell: ({ row }) => (
       <span className="text-sm text-muted-foreground whitespace-nowrap">
-        {row.original.dateApplied}
+        {row.original.dateApplied || "--"}
       </span>
     ),
   },
@@ -315,37 +348,25 @@ const columns: ColumnDef<Applicant>[] = [
     accessorKey: "status",
     header: "Status",
     cell: ({ row }) => {
-      const status = row.original.status
+      const status = row.original.status || "Pending"
+      let variant = "bg-amber-50 text-amber-700 border-amber-200"
+      let Icon = IconClockFilled
 
       if (status === "Accepted") {
-        return (
-          <Badge
-            variant="outline"
-            className="bg-emerald-50 text-emerald-700 border-emerald-200 gap-1.5 py-0.5 pl-1.5 pr-2.5"
-          >
-            <IconCircleCheckFilled className="size-3.5" />
-            Accepted
-          </Badge>
-        )
+        variant = "bg-emerald-50 text-emerald-700 border-emerald-200"
+        Icon = IconCircleCheckFilled
+      } else if (status === "Rejected") {
+        variant = "bg-red-50 text-red-700 border-red-200"
+        Icon = IconCircleXFilled
       }
-      if (status === "Rejected") {
-        return (
-          <Badge
-            variant="outline"
-            className="bg-red-50 text-red-700 border-red-200 gap-1.5 py-0.5 pl-1.5 pr-2.5"
-          >
-            <IconCircleXFilled className="size-3.5" />
-            Rejected
-          </Badge>
-        )
-      }
+
       return (
         <Badge
           variant="outline"
-          className="bg-amber-50 text-amber-700 border-amber-200 gap-1.5 py-0.5 pl-1.5 pr-2.5"
+          className={`${variant} gap-1.5 py-0.5 pl-1.5 pr-2.5`}
         >
-          <IconClockFilled className="size-3.5" />
-          Pending
+          <Icon className="size-3.5" />
+          {status}
         </Badge>
       )
     },
@@ -389,150 +410,12 @@ const columns: ColumnDef<Applicant>[] = [
   },
 ]
 
-// --- 3. Data (Expanded to 10 Items) ---
-const SAMPLE_DATA: Applicant[] = [
-  {
-    id: 1,
-    name: "Suryansh",
-    email: "suryansh@gmail.com",
-    initials: "Su",
-    role: "Cloud Engineer",
-    dateApplied: "Apr 30, 2025",
-    matchScore: 92,
-    status: "Accepted",
-  },
-  {
-    id: 2,
-    name: "Prajwal",
-    email: "prajwal@gmail.com",
-    initials: "Pr",
-    role: "Frontend Dev",
-    dateApplied: "Apr 28, 2025",
-    matchScore: 45,
-    status: "Pending",
-  },
-  {
-    id: 3,
-    name: "Amelia Rose",
-    email: "amelia.r@example.com",
-    initials: "AR",
-    role: "UX Designer",
-    dateApplied: "Apr 25, 2025",
-    matchScore: 12,
-    status: "Rejected",
-  },
-  {
-    id: 4,
-    name: "Liam Smith",
-    email: "liam.tech@example.com",
-    initials: "LS",
-    role: "Backend Dev",
-    dateApplied: "Apr 22, 2025",
-    matchScore: 88,
-    status: "Accepted",
-  },
-  {
-    id: 5,
-    name: "Olivia Jay",
-    email: "olivia.j@example.com",
-    initials: "OJ",
-    role: "Product Manager",
-    dateApplied: "Apr 20, 2025",
-    matchScore: 78,
-    status: "Pending",
-  },
-  {
-    id: 6,
-    name: "Noah Brown",
-    email: "noah.b@example.com",
-    initials: "NB",
-    role: "Cloud Engineer",
-    dateApplied: "Apr 18, 2025",
-    matchScore: 65,
-    status: "Pending",
-  },
-  {
-    id: 7,
-    name: "Sophia Green",
-    email: "sophia.green@example.com",
-    initials: "SG",
-    role: "UX Designer",
-    dateApplied: "Apr 16, 2025",
-    matchScore: 95,
-    status: "Accepted",
-  },
-  {
-    id: 8,
-    name: "James Bond",
-    email: "007@example.com",
-    initials: "JB",
-    role: "Backend Dev",
-    dateApplied: "Apr 15, 2025",
-    matchScore: 99,
-    status: "Pending",
-  },
-  {
-    id: 9,
-    name: "Lucas White",
-    email: "lucas.w@example.com",
-    initials: "LW",
-    role: "Frontend Dev",
-    dateApplied: "Apr 12, 2025",
-    matchScore: 30,
-    status: "Rejected",
-  },
-  {
-    id: 10,
-    name: "Mia Wong",
-    email: "mia.wong@example.com",
-    initials: "MW",
-    role: "Product Manager",
-    dateApplied: "Apr 10, 2025",
-    matchScore: 72,
-    status: "Pending",
-  },
-]
-
-// --- 4. Options for Faceted Filters ---
-const statusOptions = [
-  {
-    label: "Accepted",
-    value: "Accepted",
-    icon: IconCircleCheckFilled,
-  },
-  {
-    label: "Pending",
-    value: "Pending",
-    icon: IconClockFilled,
-  },
-  {
-    label: "Rejected",
-    value: "Rejected",
-    icon: IconCircleXFilled,
-  },
-]
-
-const roleOptions = [
-  { label: "Cloud Engineer", value: "Cloud Engineer" },
-  { label: "Frontend Dev", value: "Frontend Dev" },
-  { label: "Backend Dev", value: "Backend Dev" },
-  { label: "UX Designer", value: "UX Designer" },
-  { label: "Product Manager", value: "Product Manager" },
-]
-
 // --- 5. Main Component ---
-export function DataTable({
-  data: initialData = SAMPLE_DATA,
-}: {
-  data?: Applicant[]
-}) {
-  const [data, setData] = React.useState(initialData)
+export function DataTable() {
+  const [data, setData] = React.useState(SAMPLE_DATA)
   const [rowSelection, setRowSelection] = React.useState({})
-  const [columnVisibility, setColumnVisibility] =
-    React.useState<VisibilityState>({})
-  const [columnFilters, setColumnFilters] = React.useState<ColumnFiltersState>(
-    []
-  )
+  const [columnVisibility, setColumnVisibility] = React.useState<VisibilityState>({})
+  const [columnFilters, setColumnFilters] = React.useState<ColumnFiltersState>([])
   const [sorting, setSorting] = React.useState<SortingState>([])
 
   const table = useReactTable({
@@ -559,31 +442,25 @@ export function DataTable({
   const isFiltered = table.getState().columnFilters.length > 0
 
   return (
-    // ADDED: Container with padding for margins and responsiveness
-    <div className="w-full p-4 md:p-8 space-y-6 bg-muted/5 min-h-screen">
-      
-      {/* Header Section */}
+    <div className="w-full p-4 md:p-8 space-y-6 bg-muted/5 min-h-screen font-sans">
+      {/* Header */}
       <div className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
         <div>
-          <h2 className="text-2xl font-bold tracking-tight">
-            Recruitment Pipeline
-          </h2>
+          <h2 className="text-2xl font-bold tracking-tight">Recruitment Pipeline</h2>
           <p className="text-sm text-muted-foreground">
             Manage applicants and track their status.
           </p>
         </div>
       </div>
 
-      {/* Toolbar: Search, Filters & Columns */}
-      {/* UPDATED: Responsive layout flex-col on mobile, flex-row on desktop */}
+      {/* Toolbar */}
       <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
-        
         <div className="flex flex-col sm:flex-row gap-3 flex-1">
-          {/* ADDED: Applicant Name Search Input */}
+          {/* Search Input */}
           <div className="relative max-w-sm">
             <IconSearch className="absolute left-2 top-2.5 h-4 w-4 text-muted-foreground" />
             <Input
-              placeholder="Filter applicants..."
+              placeholder="Filter by name..."
               value={(table.getColumn("name")?.getFilterValue() as string) ?? ""}
               onChange={(event) =>
                 table.getColumn("name")?.setFilterValue(event.target.value)
@@ -592,8 +469,8 @@ export function DataTable({
             />
           </div>
 
+          {/* Filters */}
           <div className="flex gap-2 overflow-x-auto pb-1 sm:pb-0">
-            {/* Status Filter */}
             {table.getColumn("status") && (
               <DataTableFacetedFilter
                 column={table.getColumn("status")}
@@ -601,17 +478,13 @@ export function DataTable({
                 options={statusOptions}
               />
             )}
-
-            {/* Role Filter */}
-            {table.getColumn("role") && (
+            {table.getColumn("company") && (
               <DataTableFacetedFilter
-                column={table.getColumn("role")}
-                title="Role"
-                options={roleOptions}
+                column={table.getColumn("company")}
+                title="Company"
+                options={companyOptions}
               />
             )}
-
-            {/* Reset Filter Button */}
             {isFiltered && (
               <Button
                 variant="ghost"
@@ -624,40 +497,10 @@ export function DataTable({
             )}
           </div>
         </div>
-
-        {/* View / Columns Options */}
-        <DropdownMenu>
-          <DropdownMenuTrigger asChild>
-            <Button variant="outline" size="sm" className="ml-auto h-8">
-              <IconLayoutColumns className="mr-2 size-4" />
-              Columns
-              <IconChevronDown className="ml-2 size-4 opacity-50" />
-            </Button>
-          </DropdownMenuTrigger>
-          <DropdownMenuContent align="end">
-            {table
-              .getAllColumns()
-              .filter((column) => column.getCanHide())
-              .map((column) => {
-                return (
-                  <DropdownMenuCheckboxItem
-                    key={column.id}
-                    className="capitalize"
-                    checked={column.getIsVisible()}
-                    onCheckedChange={(value) =>
-                      column.toggleVisibility(!!value)
-                    }
-                  >
-                    {column.id}
-                  </DropdownMenuCheckboxItem>
-                )
-              })}
-          </DropdownMenuContent>
-        </DropdownMenu>
       </div>
 
-      {/* Table Wrapper */}
-      <div className="rounded-md border bg-background overflow-hidden">
+      {/* Table */}
+      <div className="rounded-md border bg-background overflow-hidden shadow-sm">
         <Table>
           <TableHeader className="bg-muted/50">
             {table.getHeaderGroups().map((headerGroup) => (
@@ -683,14 +526,11 @@ export function DataTable({
                 <TableRow
                   key={row.id}
                   data-state={row.getIsSelected() && "selected"}
-                  className="hover:bg-muted/50"
+                  className="hover:bg-muted/50 transition-colors"
                 >
                   {row.getVisibleCells().map((cell) => (
                     <TableCell key={cell.id} className="py-3">
-                      {flexRender(
-                        cell.column.columnDef.cell,
-                        cell.getContext()
-                      )}
+                      {flexRender(cell.column.columnDef.cell, cell.getContext())}
                     </TableCell>
                   ))}
                 </TableRow>
