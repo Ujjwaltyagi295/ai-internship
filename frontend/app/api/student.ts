@@ -18,12 +18,13 @@ export const students = {
   },
 
   deleteResume: async () => {
-    const response = await API.delete("/me/resume");
+    const response = await API.delete("/students/me/resume");
     return response.data;
   },
 
-  getMyProfile: async () => {
-    const response = await API.get("/me");
+  getMyResumeData: async () => {
+    const response = await API.get("/students/me/resume");
     return response.data;
   },
+  
 };

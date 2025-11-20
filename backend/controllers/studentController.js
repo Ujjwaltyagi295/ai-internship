@@ -2,6 +2,7 @@
 import Student from "../models/studentModel.js";
 import Job from "../models/jobModel.js";
 import ParsedResume from "../models/parsedResume.js";
+import jwt from "jsonwebtoken"
 import fs from "fs";
 import {
   callAiRecommender,
@@ -271,6 +272,38 @@ export const deleteResume = async (req, res) => {
   } catch (err) {
     console.error("deleteResume error:", err);
     return res.status(500).json({ error: "Error deleting resume" });
+  }
+};
+
+
+export const getMyResume = async (req, res) => {
+  try {
+    const token = req.cookies?.token; 
+    
+    if (!token) {
+      return res.status(401).json({ error: "No token provided" });
+    }
+
+   
+    const decoded = jwt.verify(token, process.env.JWT_SECRET);
+      
+    const studentId = decoded.user.id; 
+
+    const parsedResume = await ParsedResume.findOne({ student: studentId });
+  
+    if (!parsedResume) {
+      return res.status(404).json({ message: "No parsed resume found for this student." });
+    }
+
+    res.status(200).json(parsedResume);
+
+  } catch (error) {
+    console.error('Error:', error);
+    if (error.name === 'JsonWebTokenError' || error.name === 'TokenExpiredError') {
+        return res.status(403).json({ error: 'Invalid or expired token' });
+    }
+
+    res.status(500).json({ error: 'Failed to fetch resume data' });
   }
 };
 

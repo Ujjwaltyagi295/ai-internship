@@ -2,9 +2,8 @@
 "use client";
 
 import { students } from "@/app/api/student";
-import { useMutation, useQueryClient } from "@tanstack/react-query";
-
-import { toast } from "sonner"; // or your toast library
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { toast } from "sonner";
 
 export function useResumeUpload() {
   const queryClient = useQueryClient();
@@ -13,6 +12,7 @@ export function useResumeUpload() {
     mutationFn: (file: File) => students.uploadResume(file),
     onSuccess: (data) => {
       queryClient.invalidateQueries({ queryKey: ["student", "profile"] });
+      queryClient.invalidateQueries({ queryKey: ["getResume"] });
       
       toast.success("Resume uploaded successfully!");
       console.log("Upload response:", data);
@@ -32,11 +32,20 @@ export function useResumeDelete() {
     mutationFn: () => students.deleteResume(),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["student", "profile"] });
+      queryClient.invalidateQueries({ queryKey: ["getResume"] });
       toast.success("Resume deleted successfully!");
     },
     onError: (error: any) => {
       const errorMessage = error.response?.data?.error || "Failed to delete resume";
       toast.error(errorMessage);
     },
+  });
+}
+
+export function useGetResumeData() {
+  return useQuery({
+    queryKey: ["getResume"],
+    queryFn: students.getMyResumeData,
+    retry: false,
   });
 }
