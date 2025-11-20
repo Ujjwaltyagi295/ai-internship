@@ -92,6 +92,63 @@ export const signupWithFirebase = async (req, res) => {
   }
 };
 
+export const loginWithFirebase = async (req, res) => {
+  try {
+    const { firebaseToken } = req.body;
+
+    if (!firebaseToken) {
+      return res.status(400).json({ error: "Firebase token is required" });
+    }
+
+    // 1. Verify the token with Firebase Admin
+    let decoded;
+    try {
+      decoded = await admin.auth().verifyIdToken(firebaseToken);
+    } catch (err) {
+      console.error("Firebase token verify error:", err);
+      return res.status(401).json({ error: "Invalid Firebase token" });
+    }
+
+    const email = decoded.email?.toLowerCase();
+
+    // 2. Check if the user exists in YOUR database
+    const student = await Student.findOne({ email });
+    
+    if (!student) {
+      // If they don't exist, they haven't signed up yet.
+      // You can return an error, OR automatically redirect to your signup logic.
+      return res.status(404).json({ error: "User not found. Please sign up first." });
+    }
+
+    // 3. Create your custom JWT (Same logic as your standard login)
+    const payload = { user: { id: student._id, role: student.role } };
+    const token = jwt.sign(payload, JWT_SECRET, { expiresIn: "7d" });
+
+    // 4. Set the cookie
+    res.cookie("token", token, {
+      httpOnly: true,
+      secure: process.env.NODE_ENV === "production",
+      sameSite: "strict",
+      maxAge: 7 * 24 * 60 * 60 * 1000,
+      path: "/",
+    });
+
+    return res.json({
+      msg: "Firebase Login successful",
+      user: {
+        id: student._id,
+        name: student.name,
+        email: student.email,
+      },
+      role: student.role
+    });
+
+  } catch (error) {
+    console.error("Firebase Login Error:", error);
+    return res.status(500).json({ error: "Login failed. Please try again later." });
+  }
+};
+
 
 export const signup = async (req, res) => {
   try {
