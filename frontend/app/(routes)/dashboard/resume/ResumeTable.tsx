@@ -83,14 +83,10 @@ export default function ResumeTable() {
                         <div className="flex flex-col gap-1">
                           <div className="flex items-center gap-2">
                             <span className="text-gray-900 font-medium">
-                              {resume.resumeMeta?.originalName || 'Resume'}
+                              {resume.resumeMeta?.originalName.replace(/\.(pdf|doc|docx)$/i, '') || 'Resume'
+}
                             </span>
-                            {index === 0 && (
-                              <div className="flex items-center gap-1 bg-emerald-100 text-emerald-700 px-2 py-1 rounded text-xs font-bold">
-                                <Star className="w-3 h-3 fill-emerald-700" />
-                                PRIMARY
-                              </div>
-                            )}
+                           
                           </div>
                           {resume.parsedAt && (
                             <span className="bg-emerald-100 text-emerald-700 px-2 py-1 rounded text-xs font-medium w-fit">
