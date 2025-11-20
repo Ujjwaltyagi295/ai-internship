@@ -5,6 +5,10 @@ export const Jobs = {
     const response = await API.get("/students/me/recommendations");
     return response.data.recommendations;
   },
+  getAdminJobs: async () => {
+    const response = await API.get("/jobs");
+    return response.data.jobs;
+  },
   createJobs: async(data)=>{
        const response = await API.post("/jobs/",{data});
     return response.data;

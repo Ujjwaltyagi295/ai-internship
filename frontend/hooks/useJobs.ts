@@ -34,6 +34,14 @@ export function useJobs() {
     staleTime: 1000 * 60 * 2, 
   });
 }
+
+export function useAdminJobs() {
+  return useQuery({
+    queryKey: ["admin-jobs"],
+    queryFn: Jobs.getAdminJobs,
+    staleTime: 1000 * 60 * 1,
+  });
+}
 export function useJobAutoFill() {
   return useMutation({
     mutationFn: (data: string) => Jobs.getAutofill(data),
