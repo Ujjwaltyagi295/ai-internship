@@ -60,8 +60,6 @@ const studentSchema = new mongoose.Schema(
 
     resumeExtract: resumeExtractSchema,
     preferences: preferenceSchema,
-
-    skillEmbedding: [Number],
   },
   { timestamps: true }
 );

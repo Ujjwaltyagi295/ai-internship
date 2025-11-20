@@ -46,6 +46,11 @@ export const toAiStudentPayload = (student = {}) => {
   const extract = student.resumeExtract || {};
 
   const skills = extractSkillsFromStudent(student);
+  const skillEmbedding = Array.isArray(student.skillEmbedding)
+    ? student.skillEmbedding
+    : Array.isArray(student.skill_embedding)
+    ? student.skill_embedding
+    : [];
   const domains =
     (Array.isArray(extract.domains) && extract.domains.length
       ? extract.domains
@@ -80,6 +85,7 @@ export const toAiStudentPayload = (student = {}) => {
 
     resume_text: resumeText,
     skills,                      // ✔ raw skills
+    skillEmbedding,              // optional: reuse precomputed embedding when available
     branch: student.branch || null,
     domains,
     gpa: student.cgpa || 0,

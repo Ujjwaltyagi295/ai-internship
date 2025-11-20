@@ -29,7 +29,12 @@ class Student(BaseModel):
     domains: List[str] = Field(default_factory=list)
     experience: List[Any] = Field(default_factory=list)
     education: List[Any] = Field(default_factory=list)
+    skill_embedding: Optional[List[float]] = Field(default=None, alias="skillEmbedding")
 
+    class Config:
+        allow_population_by_field_name = True
+        populate_by_name = True
+        extra = "allow"
 
 class Job(BaseModel):
     id: str
@@ -56,6 +61,23 @@ embedder = get_embedder()
 feature_builder = FeatureBuilder()
 simple_ranker = SimpleRanker()
 xgb_ranker = XGBRankerWrapper()
+
+
+# ---------- Helpers ----------
+
+def _coerce_embedding(vec):
+    """
+    Return a 1-D finite float array if vec is usable, else None.
+    """
+    if vec is None:
+        return None
+    try:
+        arr = np.asarray(vec, dtype=float)
+    except Exception:
+        return None
+    if arr.ndim != 1 or not np.all(np.isfinite(arr)):
+        return None
+    return arr
 
 
 # ---------- Routes ----------
@@ -99,12 +121,13 @@ def recommend(req: RecommendRequest):
     Returns ranked jobs for a given student.
     Uses embeddings + features + XGB (if available) with correct normalization.
     """
-
     student = req.student.dict()
+    raw_student_embedding = student.pop("skill_embedding", None)
+    student_embedding = _coerce_embedding(raw_student_embedding)
     student["skills"] = skill_normalizer.normalize(student.get("skills", []))
 
     # ---- Student embedding ----
-    student_vec = embedder.embed(student["resume_text"])
+    student_vec = student_embedding if student_embedding is not None else embedder.embed(student["resume_text"])
 
     feature_rows = []
     meta = []

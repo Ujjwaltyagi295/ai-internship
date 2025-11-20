@@ -2,6 +2,8 @@
 import { create } from "zustand";
 import { persist } from "zustand/middleware";
 import API from "@/config/apiClient"; // Your axios instance with withCredentials: true
+import { auth } from "@/lib/firebaseClient";
+import { signInWithEmailAndPassword } from "firebase/auth";
 
 interface User {
   userId: string;
@@ -56,8 +58,25 @@ const useAuthStore = create<AuthStore>()(
         set({ loading: true, error: null });
 
         try {
+          // Authenticate with Firebase to get ID token
+          const cred = await signInWithEmailAndPassword(
+            auth,
+            formData.email.trim(),
+            formData.password
+          );
+
+          if (!cred.user.emailVerified) {
+            set({
+              loading: false,
+              error: "Email not verified. Please verify via the link sent to your email.",
+            });
+            return { success: false };
+          }
+
+          const firebaseToken = await cred.user.getIdToken();
+
           // Backend sets cookie and returns user data
-          const res = await API.post("/auth/login", formData);
+          const res = await API.post("/auth/login/firebase", { firebaseToken });
           
           // Cookie is automatically set by backend
           // Just store user data from response
