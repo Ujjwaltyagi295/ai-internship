@@ -30,11 +30,6 @@ type JobCardProps = {
   }
 }
 
-/**
- * This implementation prevents hydration errors
- * by rendering a stable initial color (blue)
- * and setting a random gradient only on the client.
- */
 export function AdminJobCard({ job }: JobCardProps) {
   const timePosted = "some dynamic or computed string"
   const hasIcon = Boolean(job.icon)
