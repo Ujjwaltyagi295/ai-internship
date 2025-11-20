@@ -28,7 +28,7 @@ export function Sidebar() {
     { icon: BriefcaseBusiness, label: "Jobs", path: "/dashboard/job" },
     { icon: FileText, label: "Resume", path: "/dashboard/resume" },
     { icon: User, label: "Profile", path: "/dashboard/profile" },
-    { icon: MessageCircle, label: "Dashboard", path: "/dashboard/admin" },
+    { icon: MessageCircle, label: "Dashboard", path: "/dashboard/application" },
   ];
 
   const bottomItems = [
