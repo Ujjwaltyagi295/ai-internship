@@ -1,4 +1,3 @@
-
 "use client";
 
 import { useRouter } from "next/navigation";
@@ -10,12 +9,24 @@ import {
   FieldDescription,
   FieldGroup,
   FieldLabel,
-  FieldSeparator,
 } from "@/components/ui/field";
 import { Input } from "@/components/ui/input";
 import { useState } from "react";
-import useAuthStore from "@/store/authStore";
 import { toast } from "sonner";
+
+// NEW: firebase
+import { auth } from "@/lib/firebaseClient";
+import {
+  createUserWithEmailAndPassword,
+  sendEmailVerification,
+} from "firebase/auth";
+
+// (optional) you can still keep useAuthStore for login only
+// import useAuthStore from "@/store/authStore";
+
+function isBennettEmail(email: string) {
+  return email.trim().toLowerCase().endsWith("@bennett.edu.in");
+}
 
 export function Signup({
   className,
@@ -29,27 +40,56 @@ export function Signup({
     password: "",
   });
 
-  const { signup, loading } = useAuthStore();
+  const [loading, setLoading] = useState(false); // local loading instead of store
 
-  const handleChange = (e) => {
+  const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     setForm({
       ...form,
       [e.target.id]: e.target.value,
     });
   };
 
-  const handleSubmit = async (e) => {
+  const handleSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
 
-    const res = await signup(form);
-
-    if (!res.success) {
-      toast.error("Signup failed. Please check your details.");
+    if (!isBennettEmail(form.email)) {
+      toast.error("Please use your @bennett.edu.in college email.");
       return;
     }
 
-    toast.success("Signup successful! Redirecting...");
-    router.push("/dashboard/job");
+    try {
+      setLoading(true);
+
+      // 1️⃣ Create Firebase user
+      const userCred = await createUserWithEmailAndPassword(
+        auth,
+        form.email.trim(),
+        form.password
+      );
+
+      // 2️⃣ Send verification email
+      await sendEmailVerification(userCred.user);
+
+      // 3️⃣ Store name/email so we can prefill in the next step
+      if (typeof window !== "undefined") {
+        localStorage.setItem("pendingName", form.name);
+        localStorage.setItem("pendingEmail", form.email.trim());
+      }
+
+      toast.success(
+        "Account created. Verification email sent to your college inbox. Please verify, then complete signup."
+      );
+
+      // 4️⃣ Go to the second step
+      router.push("/auth/complete-signup");
+    } catch (err: any) {
+      console.error(err);
+      toast.error(
+        err?.message || "Signup failed. Please check your details."
+      );
+    } finally {
+      setLoading(false);
+    }
   };
 
   return (
@@ -81,7 +121,7 @@ export function Signup({
                 <Input
                   id="email"
                   type="email"
-                  placeholder="m@example.com"
+                  placeholder="you@bennett.edu.in"
                   value={form.email}
                   required
                   onChange={handleChange}
@@ -100,8 +140,8 @@ export function Signup({
               </Field>
 
               <Field>
-                <Button disabled={loading} type="submit">
-                  {loading ? "Signing up..." : "Sign Up"}
+                <Button disabled={loading} type="submit" className="w-full">
+                  {loading ? "Creating account..." : "Sign Up"}
                 </Button>
               </Field>
 

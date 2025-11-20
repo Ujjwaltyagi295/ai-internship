@@ -3,10 +3,95 @@ import Student from "../models/studentModel.js";
 import bcrypt from "bcrypt";
 import jwt from "jsonwebtoken";
 import dotenv from "dotenv";
+import admin from "../utils/firebaseAdmin.js";
 
 dotenv.config();
 
 const JWT_SECRET = process.env.JWT_SECRET;
+export const signupWithFirebase = async (req, res) => {
+  try {
+    const { firebaseToken, name } = req.body;
+
+    if (!firebaseToken || !name) {
+      return res
+        .status(400)
+        .json({ error: "firebaseToken and name are required" });
+    }
+
+    let decoded;
+    try {
+      decoded = await admin.auth().verifyIdToken(firebaseToken);
+    } catch (err) {
+      console.error("Firebase token verify error:", err);
+      return res.status(401).json({ error: "Invalid Firebase token" });
+    }
+
+    const email = decoded.email?.toLowerCase();
+    const emailVerified = decoded.email_verified;
+
+    if (!email) {
+      return res.status(400).json({ error: "Email not found in token" });
+    }
+
+    // if (!isBennettEmail(email)) {
+    //   return res
+    //     .status(400)
+    //     .json({ error: "Email must be a valid bennett.edu.in address" });
+    // }
+
+    if (!emailVerified) {
+      return res
+        .status(400)
+        .json({ error: "Email not verified. Please verify via the link." });
+    }
+
+    // Check if already exists
+    const existing = await Student.findOne({ email });
+    if (existing) {
+      return res.status(400).json({ error: "Email already registered" });
+    }
+
+    // Random password because Firebase handles the real password
+    const randomPass = await bcrypt.hash(
+      "firebase_managed_password_" + email,
+      10
+    );
+
+    const student = await Student.create({
+      name,
+      email,
+      password: randomPass,
+      // role defaults to "student"
+    });
+
+    const payload = { user: { id: student._id, role: student.role } };
+    const token = jwt.sign(payload, JWT_SECRET, { expiresIn: "7d" });
+
+    res.cookie("token", token, {
+      httpOnly: true,
+      secure: process.env.NODE_ENV === "production",
+      sameSite: "strict",
+      maxAge: 7 * 24 * 60 * 60 * 1000,
+      path: "/",
+    });
+
+    return res.status(201).json({
+      msg: "Signup successful",
+      user: {
+        id: student._id,
+        name: student.name,
+        email: student.email,
+      },
+      role: student.role,
+    });
+  } catch (error) {
+    console.error("Signup with Firebase Error:", error);
+    return res
+      .status(500)
+      .json({ error: "Signup failed. Try again later." });
+  }
+};
+
 
 export const signup = async (req, res) => {
   try {
