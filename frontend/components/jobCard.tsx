@@ -1,8 +1,6 @@
 "use client"
-import { MapPin, Building, Clock, Users, Heart, MessageCircle, Ban } from 'lucide-react'
-import { Label, PolarRadiusAxis, RadialBar, RadialBarChart } from "recharts"
-import { ChartConfig, ChartContainer } from "@/components/ui/chart"
-import { useEffect, useState } from 'react'
+import { Ban, Heart, MessageCircle } from 'lucide-react'
+import { RadialProgress } from './ui/RadialProgress'
 
 interface JobCardProps {
   job: {
@@ -24,42 +22,8 @@ interface JobCardProps {
   }
 }
 
-const chartConfig = {
-  matchScore: {
-    label: "Match Score",
-    color: "rgb(16, 185, 129)",
-  },
-} satisfies ChartConfig
-
 export function JobCard({ job }: JobCardProps) {
   const timePosted = job.id === 1 ? '14 hours ago' : job.id === 2 ? '10 hours ago' : '2 days ago'
-  const [displayScore, setDisplayScore] = useState(0)
-  
-  useEffect(() => {
-    let startValue = 0
-    const duration = 800
-    const increment = job.matchScore / (duration / 16)
-    
-    const timer = setInterval(() => {
-      startValue += increment
-      if (startValue >= job.matchScore) {
-        setDisplayScore(job.matchScore)
-        clearInterval(timer)
-      } else {
-        setDisplayScore(Math.floor(startValue))
-      }
-    }, 16)
-    
-    return () => clearInterval(timer)
-  }, [job.matchScore])
-  
-  const chartData = [
-    { 
-      name: "match", 
-      value: displayScore, 
-      fill: "rgb(16, 185, 129)" 
-    },
-  ]
 
   return (
     <div className="bg-white rounded-xl border border-gray-200 hover:border-gray-300 transition overflow-hidden h-full flex flex-col">
@@ -78,7 +42,9 @@ export function JobCard({ job }: JobCardProps) {
                   <span className="text-xl text-gray-400">•••</span>
                 </button>
               </div>
-              <h3 className="text-base lg:text-xl lg:leading-tight font-bold text-gray-900 line-clamp-2 mb-1">{job.title}</h3>
+              <h3 className="text-base lg:text-xl lg:leading-tight font-bold text-gray-900 line-clamp-2 mb-1">
+                {job.title}
+              </h3>
               <div className="text-xs lg:text-base lg:leading-tight text-gray-500 line-clamp-1 mb-2">
                 {job.company} / {job.industry} · {job.sector} · {job.stage}
               </div>
@@ -108,6 +74,7 @@ export function JobCard({ job }: JobCardProps) {
             <span>{job.applicants}+ applicants</span>
           </div>
 
+          {/* Mobile Actions */}
           <div className="flex lg:hidden items-center justify-between pt-3 border-t border-gray-200 mt-auto">
             <div className="flex items-center gap-2">
               <button className="p-2 hover:bg-gray-50 rounded-full transition">
@@ -120,29 +87,13 @@ export function JobCard({ job }: JobCardProps) {
             <div className="flex items-center gap-3">
               <div className="flex items-center gap-2">
                 <span className="text-xs font-semibold text-gray-900">STRONG MATCH</span>
-                <div className="relative w-10 h-10">
-                  <ChartContainer
-                    config={chartConfig}
-                    className="w-full h-full"
-                  >
-                    <RadialBarChart
-                      data={chartData}
-                      startAngle={90}
-                      endAngle={90 + (displayScore / 100) * 360}
-                      innerRadius={14}
-                      outerRadius={18}
-                    >
-                      <RadialBar 
-                        dataKey="value" 
-                        cornerRadius={3}
-                        isAnimationActive={false}
-                      />
-                    </RadialBarChart>
-                  </ChartContainer>
-                  <div className="absolute inset-0 flex items-center justify-center">
-                    <span className="text-[10px] font-bold text-gray-900">{displayScore}%</span>
-                  </div>
-                </div>
+                {/* Mobile: 48px with text at ~14px (30% of size) */}
+                <RadialProgress 
+                  value={job.matchScore} 
+                  size={48} 
+                  strokeWidth={4}
+                  textColor="#000"
+                />
               </div>
               <button className="p-1 hover:bg-gray-100 rounded">
                 <span className="text-xl text-gray-400">•••</span>
@@ -150,6 +101,7 @@ export function JobCard({ job }: JobCardProps) {
             </div>
           </div>
 
+          {/* Desktop Actions */}
           <div className="hidden lg:flex items-center gap-3 pt-4 border-t border-gray-200 mt-auto">
             <button className="p-2 hover:bg-gray-50 rounded-full transition">
               <Ban className="w-6 h-6 text-gray-600" />
@@ -167,50 +119,16 @@ export function JobCard({ job }: JobCardProps) {
           </div>
         </div>
 
+        {/* Desktop Match Score Card */}
         <div className="hidden lg:flex flex-shrink-0 w-48 bg-gradient-to-b from-black to-[#00485f] rounded-xl p-6 flex-col items-center justify-between text-white">
           <div className="flex flex-col items-center justify-center flex-1">
-            <ChartContainer
-              config={chartConfig}
-              className="mx-auto aspect-square w-28 h-28 mb-4"
-            >
-              <RadialBarChart
-                data={chartData}
-                startAngle={90}
-                endAngle={90 + (displayScore / 100) * 360}
-                innerRadius={42}
-                outerRadius={52}
-              >
-                <RadialBar 
-                  dataKey="value" 
-                  cornerRadius={10}
-                  isAnimationActive={false}
-                />
-                <PolarRadiusAxis tick={false} tickLine={false} axisLine={false}>
-                  <Label
-                    content={({ viewBox }) => {
-                      if (viewBox && "cx" in viewBox && "cy" in viewBox) {
-                        return (
-                          <text
-                            x={viewBox.cx}
-                            y={viewBox.cy}
-                            textAnchor="middle"
-                            dominantBaseline="middle"
-                          >
-                            <tspan
-                              x={viewBox.cx}
-                              y={viewBox.cy}
-                              className="fill-white text-3xl font-bold"
-                            >
-                              {displayScore}%
-                            </tspan>
-                          </text>
-                        )
-                      }
-                    }}
-                  />
-                </PolarRadiusAxis>
-              </RadialBarChart>
-            </ChartContainer>
+            {/* Desktop: 112px with text at ~34px (30% of size) */}
+            <RadialProgress 
+              value={job.matchScore} 
+              size={112} 
+              strokeWidth={8}
+              className="mb-4"
+            />
 
             <div className="text-center text-sm font-bold">
               STRONG MATCH
@@ -224,7 +142,7 @@ export function JobCard({ job }: JobCardProps) {
                 <span>Growth Opportunities</span>
               </div>
             )}
-             {job.isSponsor && (
+            {job.isSponsor && (
               <div className="flex items-center gap-2 text-xs">
                 <span className="text-green-400">✓</span>
                 <span>H1B Sponsor Likely</span>

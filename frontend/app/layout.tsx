@@ -1,6 +1,8 @@
 import type { Metadata } from "next";
 import { Geist, Geist_Mono, Inter, Pacifico } from "next/font/google";
 import "./globals.css";
+import QueryProvider from "@/components/providers/QueryProvider";
+import ProtectedRoute from "@/hooks/protectedRoutes";
 const pacifico = Pacifico({
   variable:"--font-pacifico",
   weight:"400"
@@ -33,8 +35,13 @@ export default function RootLayout({
     <html lang="en" className="overflow-x-hidden">
       <body
         className={`${geistSans.variable } ${pacifico.variable} ${inter.variable} ${geistMono.variable} antialiased`}
-      >
-       {children}
+      > 
+        <QueryProvider>
+         {children}
+        
+        </QueryProvider>
+       
+
       </body>
     </html>
   );

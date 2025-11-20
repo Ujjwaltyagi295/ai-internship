@@ -30,10 +30,10 @@ export default function HeroSection() {
             <a href="#" className="text-white/70 font-medium hover:text-white transition">Pricing</a>
             <a href="#" className="text-white/70 font-medium hover:text-white transition">Enterprise</a>
           </div>
-          
-          <button className="px-6 py-2.5 bg-white text-gray-900 rounded-lg font-semibold hover:bg-white/90 transition">
-            Start for Free
-          </button>
+        
+          <a href='/dashboard/job' className="px-6 py-2.5 bg-white text-gray-900 rounded-lg font-semibold hover:bg-white/90 transition">
+           Get Started
+          </a>
         </nav>
 
         <main className="relative flex flex-col items-center justify-center px-8 pt-12 pb-16">

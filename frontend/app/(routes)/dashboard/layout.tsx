@@ -2,6 +2,7 @@
 "use client";
 import { JobsHeader } from "@/components/jobHeader";
 import { Sidebar } from "@/components/sidebar";
+import ProtectedRoute from "@/hooks/protectedRoutes";
 import { usePathname } from "next/navigation";
 
 export default function DashboardLayout({ children }) {
@@ -20,8 +21,11 @@ export default function DashboardLayout({ children }) {
     <div className="flex h-screen bg-white">
       <Sidebar />
       <div className="flex-1 flex flex-col overflow-hidden">
-        <JobsHeader section={section} />
+        <ProtectedRoute>
+            <JobsHeader section={section} />
         {children}
+        </ProtectedRoute>
+      
       </div>
     </div>
   );

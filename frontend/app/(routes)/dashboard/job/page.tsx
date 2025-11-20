@@ -1,7 +1,8 @@
 import { FilterBar } from '@/components/filterBar'
 import { JobCard } from '@/components/jobCard'
 import { JobsHeader } from '@/components/jobHeader'
-import { OrionPanel } from '@/components/orionPanel'
+import { Panel } from '@/components/Panel'
+
 
 export default function JobsPage() {
   const jobs = [
@@ -95,7 +96,7 @@ export default function JobsPage() {
         </div>
       </div>
       <div className="hidden lg:block fixed right-0 top-0 h-screen w-[300px] bg-white">
-        <OrionPanel />
+        <Panel />
       </div>
     </div>
   )

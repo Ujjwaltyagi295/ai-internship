@@ -9,11 +9,15 @@ import adminRoutes from './routes/adminRoutes.js';
 import applicationRoutes from './routes/applicationRoutes.js';
 import analyticsRoutes from './routes/analyticsRoutes.js';
 import authRoutes from './routes/authRoutes.js';
+import cookieParser from 'cookie-parser';
 
 const app = express();
-
-app.use(cors());
+app.use(cors({
+  origin: process.env.CLIENT_URL || "http://localhost:3000",
+  credentials: true
+}));
 app.use(express.json());
+app.use(cookieParser());
 app.use(express.urlencoded());
 app.use(morgan('dev'));
 

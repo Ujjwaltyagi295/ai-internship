@@ -5,8 +5,6 @@ import ParsedResume from "../models/parsedResume.js";
 import fs from "fs";
 import {
   callAiRecommender,
-  toAiJobPayload,
-  toAiStudentPayload,
   parseResumeWithAI,
 } from "../utils/aiServiceClient.js";
 
@@ -44,17 +42,18 @@ const isEligibleForJob = (student = {}, job = {}) => {
   return true;
 };
 
+// Helper to get student ID from req.user (set by fetchuser middleware)
 const ensureStudentId = (req, res) => {
   const id = req.user?.id;
   if (!id) {
-    res.status(401).json({ message: "Authentication required" });
+    res.status(401).json({ error: "Authentication required" });
     return null;
   }
   return id;
 };
 
 // -------------------------------------
-// Profile (self)
+// Profile (self) - Uses cookie auth
 // -------------------------------------
 export const getMyProfile = async (req, res) => {
   try {
@@ -62,11 +61,14 @@ export const getMyProfile = async (req, res) => {
     if (!studentId) return;
 
     const student = await Student.findById(studentId).select("-password");
-    if (!student) return res.status(404).json({ message: "Student not found" });
+    if (!student) {
+      return res.status(404).json({ error: "Student not found" });
+    }
 
     res.json(student);
   } catch (err) {
-    res.status(500).json({ message: "Could not fetch profile" });
+    console.error("getMyProfile error:", err);
+    res.status(500).json({ error: "Could not fetch profile" });
   }
 };
 
@@ -78,7 +80,8 @@ export const getStudents = async (_req, res) => {
     const students = await Student.find().select("-password");
     res.json(students);
   } catch (err) {
-    res.status(500).json({ message: "Could not fetch students" });
+    console.error("getStudents error:", err);
+    res.status(500).json({ error: "Could not fetch students" });
   }
 };
 
@@ -86,8 +89,9 @@ export const createStudentProfile = async (req, res) => {
   try {
     const { email } = req.body;
 
-    if (!email)
-      return res.status(400).json({ message: "University email is required" });
+    if (!email) {
+      return res.status(400).json({ error: "University email is required" });
+    }
 
     const payload = buildProfileUpdates(req.body);
     payload.email = email;
@@ -96,11 +100,12 @@ export const createStudentProfile = async (req, res) => {
       { email },
       payload,
       { new: true, upsert: true }
-    );
+    ).select("-password");
 
     res.status(201).json(student);
   } catch (err) {
-    res.status(500).json({ message: "Could not save student profile" });
+    console.error("createStudentProfile error:", err);
+    res.status(500).json({ error: "Could not save student profile" });
   }
 };
 
@@ -111,15 +116,24 @@ export const updateStudentProfile = async (req, res) => {
 
     const updates = buildProfileUpdates(req.body);
 
+    if (Object.keys(updates).length === 0) {
+      return res.status(400).json({ error: "No valid fields to update" });
+    }
+
     const student = await Student.findByIdAndUpdate(
       studentId,
       { $set: updates },
       { new: true }
     ).select("-password");
 
+    if (!student) {
+      return res.status(404).json({ error: "Student not found" });
+    }
+
     res.json(student);
   } catch (err) {
-    res.status(500).json({ message: "Could not update profile" });
+    console.error("updateStudentProfile error:", err);
+    res.status(500).json({ error: "Could not update profile" });
   }
 };
 
@@ -132,7 +146,7 @@ export const uploadResume = async (req, res) => {
     if (!studentId) return;
 
     if (!req.file) {
-      return res.status(400).json({ message: "Resume file is required" });
+      return res.status(400).json({ error: "Resume file is required" });
     }
 
     const resumeMeta = {
@@ -144,16 +158,15 @@ export const uploadResume = async (req, res) => {
       uploadedAt: new Date(),
     };
 
-    // 1) Save resume metadata on Student (overwrite previous resume meta)
+    // 1) Save resume metadata on Student
     const student = await Student.findByIdAndUpdate(
       studentId,
       { resume: resumeMeta },
       { new: true }
     );
 
-    // If student not found (extra check)
     if (!student) {
-      return res.status(404).json({ message: "Student not found" });
+      return res.status(404).json({ error: "Student not found" });
     }
 
     // 2) Attempt AI parsing
@@ -166,7 +179,6 @@ export const uploadResume = async (req, res) => {
       });
     } catch (err) {
       console.warn("AI parse failed:", err?.message || err);
-      // We deliberately don't delete existing parsed resume if parse fails.
       return res.json({
         message: "Resume uploaded, but parsing failed. Resume metadata saved.",
         student,
@@ -195,14 +207,13 @@ export const uploadResume = async (req, res) => {
       },
     };
 
-    // 4) Remove any existing parsed resume for this student
-    // Use deleteOne to remove existing doc (if any)
+    // 4) Remove existing parsed resume for this student
     await ParsedResume.deleteOne({ student: studentId });
 
     // 5) Insert new parsed resume
     const createdParsedResume = await ParsedResume.create(parsedResumeDoc);
 
-    // 6) Optionally link parsed resume id back to student (useful pointer)
+    // 6) Link parsed resume id back to student
     const updatedStudent = await Student.findByIdAndUpdate(
       studentId,
       { parsedResume: createdParsedResume._id },
@@ -216,7 +227,10 @@ export const uploadResume = async (req, res) => {
     });
   } catch (err) {
     console.error("uploadResume error:", err);
-    return res.status(500).json({ message: "Could not upload resume", error: err.message });
+    return res.status(500).json({ 
+      error: "Could not upload resume", 
+      details: err.message 
+    });
   }
 };
 
@@ -230,7 +244,7 @@ export const deleteResume = async (req, res) => {
 
     const student = await Student.findById(studentId);
     if (!student) {
-      return res.status(404).json({ message: "Student not found" });
+      return res.status(404).json({ error: "Student not found" });
     }
 
     // 1. Delete resume file from disk if exists
@@ -245,7 +259,7 @@ export const deleteResume = async (req, res) => {
       }
     }
 
-    // 2. Delete parsed resume from separate collection
+    // 2. Delete parsed resume from collection
     await ParsedResume.deleteOne({ student: studentId });
 
     // 3. Remove resume metadata and parsedResume pointer
@@ -256,7 +270,7 @@ export const deleteResume = async (req, res) => {
     return res.json({ message: "Resume deleted successfully" });
   } catch (err) {
     console.error("deleteResume error:", err);
-    return res.status(500).json({ message: "Error deleting resume" });
+    return res.status(500).json({ error: "Error deleting resume" });
   }
 };
 
@@ -265,10 +279,13 @@ export const deleteResume = async (req, res) => {
 // -------------------------------------
 export const getStudentRecommendations = async (req, res) => {
   try {
-    const { id: studentId } = req.user;
+    const studentId = ensureStudentId(req, res);
+    if (!studentId) return;
+
     const student = await Student.findById(studentId).lean();
-    if (!student)
-      return res.status(404).json({ message: "Student not found" });
+    if (!student) {
+      return res.status(404).json({ error: "Student not found" });
+    }
 
     const jobs = await Job.find().lean();
 
@@ -276,13 +293,14 @@ export const getStudentRecommendations = async (req, res) => {
       isEligibleForJob(student, job)
     );
 
-    if (!eligibleJobs.length)
+    if (!eligibleJobs.length) {
       return res.json({
         studentId,
         recommendations: [],
         count: 0,
-        message: "No eligible jobs",
+        message: "No eligible jobs found",
       });
+    }
 
     const aiResponse = await callAiRecommender({
       student,
@@ -313,6 +331,6 @@ export const getStudentRecommendations = async (req, res) => {
     });
   } catch (err) {
     console.error("Recommendation error:", err);
-    res.status(500).json({ message: "Failed to load recommendations" });
+    res.status(500).json({ error: "Failed to load recommendations" });
   }
 };

@@ -1,71 +1,118 @@
+// store/authStore.ts
 import { create } from "zustand";
-import axios from "axios";
+import { persist } from "zustand/middleware";
+import API from "@/config/apiClient"; // Your axios instance with withCredentials: true
 
-const useAuthStore = create((set) => ({
-  user: null,
-  token: null,
-  loading: false,
-  error: null,
+interface User {
+  userId: string;
+  name: string;
+  email: string;
+  role: string;
+  branch?: string;
+  cgpa?: number;
+  batch?: string;
+}
 
-  signup: async (formData) => {
-    set({ loading: true, error: null });
+interface AuthStore {
+  user: User | null;
+  isAuthenticated: boolean;
+  loading: boolean;
+  error: string | null;
 
-    try {
-      const res = await axios.post("/api/auth/signup", formData);
+  signup: (formData: { name: string; email: string; password: string }) => Promise<{ success: boolean }>;
+  login: (formData: { email: string; password: string }) => Promise<{ success: boolean }>;
+  logout: () => Promise<void>;
+  checkAuth: () => Promise<void>;
+  clearError: () => void;
+}
 
-      set({
-        user: res.data.user,
-        token: res.data.token,
-        loading: false,
-      });
+const useAuthStore = create<AuthStore>()(
+  persist(
+    (set) => ({
+      user: null,
+      isAuthenticated: false,
+      loading: false,
+      error: null,
 
-      return { success: true };
-    } catch (err) {
-      set({
-        loading: false,
-        error: err.response?.data?.error || "Signup failed",
-      });
+      signup: async (formData) => {
+        set({ loading: true, error: null });
 
-      return { success: false };
+        try {
+          // Signup doesn't return token, just creates account
+          await API.post("/auth/signup", formData);
+          
+          set({ loading: false });
+          return { success: true };
+        } catch (err: any) {
+          set({
+            loading: false,
+            error: err.response?.data?.error || "Signup failed",
+          });
+          return { success: false };
+        }
+      },
+
+      login: async (formData) => {
+        set({ loading: true, error: null });
+
+        try {
+          // Backend sets cookie and returns user data
+          const res = await API.post("/auth/login", formData);
+          
+          // Cookie is automatically set by backend
+          // Just store user data from response
+          set({
+            user: res.data.user, // This is the user object from backend
+            isAuthenticated: true,
+            loading: false,
+          });
+
+          return { success: true };
+        } catch (err: any) {
+          set({
+            loading: false,
+            error: err.response?.data?.error || "Login failed",
+          });
+          return { success: false };
+        }
+      },
+
+      logout: async () => {
+        try {
+          await API.post("/auth/logout");
+          set({ user: null, isAuthenticated: false });
+        } catch (err) {
+          // Clear state even if logout request fails
+          set({ user: null, isAuthenticated: false });
+        }
+      },
+
+      checkAuth: async () => {
+        try {
+          // This uses the cookie automatically
+          const res = await API.get("/auth/me");
+          set({
+            user: res.data,
+            isAuthenticated: true,
+          });
+        } catch (err) {
+          set({
+            user: null,
+            isAuthenticated: false,
+          });
+        }
+      },
+
+      clearError: () => set({ error: null }),
+    }),
+    {
+      name: "auth-storage",
+      partialize: (state) => ({
+        user: state.user,
+        isAuthenticated: state.isAuthenticated,
+      }),
     }
-  },
-
-  login: async (formData) => {
-    set({ loading: true, error: null });
-
-    try {
-      const res = await axios.post("/api/auth/login", formData);
-
-      set({
-        user: res.data.user,
-        token: res.data.token,
-        loading: false,
-      });
-
-      localStorage.setItem("token", res.data.token);
-
-      return { success: true };
-    } catch (err) {
-      set({
-        loading: false,
-        error: err.response?.data?.error || "Login failed",
-      });
-
-      return { success: false };
-    }
-  },
-
-  logout: () => {
-    localStorage.removeItem("token");
-    set({ user: null, token: null });
-  },
-
-  loadUser: () => {
-    const token = localStorage.getItem("token");
-    if (token) {
-      set({ token });
-    }
-  },
-}));
+  )
+);
 
 export default useAuthStore;
