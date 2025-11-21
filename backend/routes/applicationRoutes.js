@@ -15,7 +15,7 @@ router.post('/', fetchuser, createApplication);
 // Student apps should use fetchuser instead of sending studentId manually
 router.get('/student', fetchuser, getStudentApplications);
 
-// Job applications (admin/recruiter area) – no studentId needed
-router.get('/job/:jobId',restrictRole("admin"),getJobApplications);
+// Job applications (admin/recruiter area)
+router.get('/job/:jobId', fetchuser, restrictRole("admin"), getJobApplications);
 
 export default router;

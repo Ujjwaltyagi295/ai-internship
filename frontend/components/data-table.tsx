@@ -71,16 +71,19 @@ import {
   PopoverContent,
   PopoverTrigger,
 } from "@/components/ui/popover"
+import { Jobs } from "@/app/api/job"
+import { useMutation, useQueryClient } from "@tanstack/react-query"
 
 // --- 1. Data Types & Schema ---
 const applicantSchema = z.object({
-  id: z.number(),
+  id: z.union([z.number(), z.string()]),
+  applicationId: z.union([z.number(), z.string()]).optional(),
   name: z.string(),
   email: z.string(),
   initials: z.string().optional(),
-  company: z.string(),
+  company: z.string().optional(),
   dateApplied: z.string(),
-  matchScore: z.number(),
+  matchScore: z.number().optional(),
   status: z.string(),
 })
 
@@ -221,205 +224,233 @@ function DataTableFacetedFilter<TData, TValue>({
 
 // --- 4. Table Configuration ---
 const statusOptions = [
-  { label: "Accepted", value: "Accepted", icon: IconCircleCheckFilled },
-  { label: "Pending", value: "Pending", icon: IconClockFilled },
+  { label: "Under Review", value: "Under Review", icon: IconClockFilled },
+  { label: "Shortlisted", value: "Shortlisted", icon: IconCircleCheckFilled },
   { label: "Rejected", value: "Rejected", icon: IconCircleXFilled },
 ]
 
-const companyOptions = [
-  { label: "Google", value: "Google" },
-  { label: "Microsoft", value: "Microsoft" },
-  { label: "Amazon", value: "Amazon" },
-  { label: "Meta", value: "Meta" },
-  { label: "Apple", value: "Apple" },
-  { label: "Netflix", value: "Netflix" },
-  { label: "Tesla", value: "Tesla" },
-  { label: "SpaceX", value: "SpaceX" },
-  { label: "Stripe", value: "Stripe" },
-  { label: "Airbnb", value: "Airbnb" },
-]
-
-const columns: ColumnDef<Applicant>[] = [
-  {
-    id: "select",
-    header: ({ table }) => (
-      <div className="flex items-center justify-center">
-        <Checkbox
-          checked={
-            table.getIsAllPageRowsSelected()
-              ? true
-              : table.getIsSomePageRowsSelected()
-              ? "indeterminate"
-              : false
-          }
-          onCheckedChange={(value) => table.toggleAllPageRowsSelected(!!value)}
-          aria-label="Select all"
-        />
-      </div>
-    ),
-    cell: ({ row }) => (
-      <div className="flex items-center justify-center">
-        <Checkbox
-          checked={row.getIsSelected()}
-          onCheckedChange={(value) => row.toggleSelected(!!value)}
-          aria-label="Select row"
-        />
-      </div>
-    ),
-    size: 40,
-    enableSorting: false,
-    enableHiding: false,
-  },
-  {
-    accessorKey: "name",
-    header: "Applicant Name",
-    enableHiding: false,
-    cell: ({ row }) => {
-      const name = (row.getValue("name") as string) || "No Name"
-      const email = row.original.email || "No Email"
-      const initials = row.original.initials || name.slice(0, 2).toUpperCase()
-
-      return (
-        <div className="flex items-center gap-3 min-w-[150px]">
-          <Avatar className="h-9 w-9 bg-muted/50 border">
-            <AvatarImage src="" />
-            <AvatarFallback className="bg-primary/10 text-primary font-bold text-xs">
-              {initials}
-            </AvatarFallback>
-          </Avatar>
-          <div className="flex flex-col">
-            <span className="text-sm font-bold text-foreground truncate">
-              {name}
-            </span>
-            <span className="text-xs text-muted-foreground truncate">
-              {email}
-            </span>
-          </div>
-        </div>
-      )
-    },
-  },
-  {
-    accessorKey: "matchScore",
-    header: "Match Score",
-    cell: ({ row }) => {
-      const score = row.original.matchScore || 0
-      let colorClass = "bg-red-500"
-      if (score >= 80) colorClass = "bg-emerald-500"
-      else if (score >= 50) colorClass = "bg-amber-500"
-
-      return (
-        <div className="flex w-[120px] items-center gap-2">
-          <div className="h-2 w-full overflow-hidden rounded-full bg-secondary">
-            <div
-              className={`h-full ${colorClass} transition-all duration-500`}
-              style={{ width: `${score}%` }}
-            />
-          </div>
-          <span className="text-xs font-medium text-muted-foreground w-8 text-right">
-            {score}%
-          </span>
-        </div>
-      )
-    },
-  },
-  {
-    accessorKey: "company",
-    header: "Company Name",
-    cell: ({ row }) => (
-      <Badge variant="outline" className="font-normal text-muted-foreground">
-        {row.original.company || "N/A"}
-      </Badge>
-    ),
-    filterFn: (row, id, value) => {
-      return value.includes(row.getValue(id))
-    },
-  },
-  {
-    accessorKey: "dateApplied",
-    header: "Date Applied",
-    cell: ({ row }) => (
-      <span className="text-sm text-muted-foreground whitespace-nowrap">
-        {row.original.dateApplied || "--"}
-      </span>
-    ),
-  },
-  {
-    accessorKey: "status",
-    header: "Status",
-    cell: ({ row }) => {
-      const status = row.original.status || "Pending"
-      let variant = "bg-amber-50 text-amber-700 border-amber-200"
-      let Icon = IconClockFilled
-
-      if (status === "Accepted") {
-        variant = "bg-emerald-50 text-emerald-700 border-emerald-200"
-        Icon = IconCircleCheckFilled
-      } else if (status === "Rejected") {
-        variant = "bg-red-50 text-red-700 border-red-200"
-        Icon = IconCircleXFilled
-      }
-
-      return (
-        <Badge
-          variant="outline"
-          className={`${variant} gap-1.5 py-0.5 pl-1.5 pr-2.5`}
-        >
-          <Icon className="size-3.5" />
-          {status}
-        </Badge>
-      )
-    },
-    filterFn: (row, id, value) => {
-      return value.includes(row.getValue(id))
-    },
-  },
-  {
-    id: "actions",
-    header: () => <div className="sr-only">Actions</div>,
-    cell: () => (
-      <div className="flex justify-end">
-        <DropdownMenu>
-          <DropdownMenuTrigger asChild>
-            <Button
-              variant="ghost"
-              size="icon"
-              className="size-8 text-muted-foreground"
-            >
-              <IconDotsVertical className="size-4" />
-              <span className="sr-only">Open menu</span>
-            </Button>
-          </DropdownMenuTrigger>
-          <DropdownMenuContent align="end" className="w-48">
-            <DropdownMenuItem>
-              <IconEye className="mr-2 size-4 opacity-70" />
-              View Application
-            </DropdownMenuItem>
-            <DropdownMenuItem>
-              <IconMail className="mr-2 size-4 opacity-70" />
-              Email Applicant
-            </DropdownMenuItem>
-            <DropdownMenuSeparator />
-            <DropdownMenuItem className="text-red-600 focus:text-red-600 focus:bg-red-50">
-              Reject Application
-            </DropdownMenuItem>
-          </DropdownMenuContent>
-        </DropdownMenu>
-      </div>
-    ),
-  },
-]
-
 // --- 5. Main Component ---
-export function DataTable() {
-  const [data, setData] = React.useState(SAMPLE_DATA)
+interface DataTableProps {
+  jobId?: string
+  data?: Applicant[]
+  isLoading?: boolean
+  isError?: boolean
+  jobTitle?: string
+  onStatusFilterChange?: (status?: string) => void
+}
+
+export function DataTable({
+  jobId,
+  jobTitle,
+  data = SAMPLE_DATA,
+  isLoading,
+  isError,
+  onStatusFilterChange,
+}: DataTableProps) {
+  const [tableData, setTableData] = React.useState(data)
   const [rowSelection, setRowSelection] = React.useState({})
   const [columnVisibility, setColumnVisibility] = React.useState<VisibilityState>({})
   const [columnFilters, setColumnFilters] = React.useState<ColumnFiltersState>([])
   const [sorting, setSorting] = React.useState<SortingState>([])
+  const queryClient = useQueryClient()
+
+  React.useEffect(() => {
+    setTableData(data)
+  }, [data])
+
+  const statusMutation = useMutation({
+    mutationFn: ({ applicationId, status }: { applicationId: string; status: string }) =>
+      Jobs.updateApplicationStatus(applicationId, status),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["job-applications", jobId] })
+    },
+  })
+
+  const columns: ColumnDef<Applicant>[] = [
+    {
+      id: "select",
+      header: ({ table }) => (
+        <div className="flex items-center justify-center">
+          <Checkbox
+            checked={
+              table.getIsAllPageRowsSelected()
+                ? true
+                : table.getIsSomePageRowsSelected()
+                ? "indeterminate"
+                : false
+            }
+            onCheckedChange={(value) => table.toggleAllPageRowsSelected(!!value)}
+            aria-label="Select all"
+          />
+        </div>
+      ),
+      cell: ({ row }) => (
+        <div className="flex items-center justify-center">
+          <Checkbox
+            checked={row.getIsSelected()}
+            onCheckedChange={(value) => row.toggleSelected(!!value)}
+            aria-label="Select row"
+          />
+        </div>
+      ),
+      size: 40,
+      enableSorting: false,
+      enableHiding: false,
+    },
+    {
+      accessorKey: "name",
+      header: "Applicant Name",
+      enableHiding: false,
+      cell: ({ row }) => {
+        const name = (row.getValue("name") as string) || "No Name"
+        const email = row.original.email || "No Email"
+        const initials = row.original.initials || name.slice(0, 2).toUpperCase()
+
+        return (
+          <div className="flex items-center gap-3 min-w-[150px]">
+            <Avatar className="h-9 w-9 bg-muted/50 border">
+              <AvatarImage src="" />
+              <AvatarFallback className="bg-primary/10 text-primary font-bold text-xs">
+                {initials}
+              </AvatarFallback>
+            </Avatar>
+            <div className="flex flex-col">
+              <span className="text-sm font-bold text-foreground truncate">
+                {name}
+              </span>
+              <span className="text-xs text-muted-foreground truncate">
+                {email}
+              </span>
+            </div>
+          </div>
+        )
+      },
+    },
+    {
+      accessorKey: "matchScore",
+      header: "Match Score",
+      cell: ({ row }) => {
+        const score = row.original.matchScore || 0
+        let colorClass = "bg-red-500"
+        if (score >= 80) colorClass = "bg-emerald-500"
+        else if (score >= 50) colorClass = "bg-amber-500"
+
+        return (
+          <div className="flex w-[120px] items-center gap-2">
+            <div className="h-2 w-full overflow-hidden rounded-full bg-secondary">
+              <div
+                className={`h-full ${colorClass} transition-all duration-500`}
+                style={{ width: `${score}%` }}
+              />
+            </div>
+            <span className="text-xs font-medium text-muted-foreground w-8 text-right">
+              {score}%
+            </span>
+          </div>
+        )
+      },
+    },
+    {
+      accessorKey: "dateApplied",
+      header: "Date Applied",
+      cell: ({ row }) => (
+        <span className="text-sm text-muted-foreground whitespace-nowrap">
+          {row.original.dateApplied || "--"}
+        </span>
+      ),
+    },
+    {
+      accessorKey: "status",
+      header: "Status",
+      cell: ({ row }) => {
+        const rawStatus = row.original.status || "Under Review"
+        const status = rawStatus.replace(/_/g, " ")
+        let variant = "bg-amber-50 text-amber-700 border-amber-200"
+        let Icon = IconClockFilled
+
+        if (status.toLowerCase().includes("shortlisted")) {
+          variant = "bg-emerald-50 text-emerald-700 border-emerald-200"
+          Icon = IconCircleCheckFilled
+        } else if (status.toLowerCase().includes("reject")) {
+          variant = "bg-red-50 text-red-700 border-red-200"
+          Icon = IconCircleXFilled
+        }
+
+        return (
+          <Badge
+            variant="outline"
+            className={`${variant} gap-1.5 py-0.5 pl-1.5 pr-2.5`}
+          >
+            <Icon className="size-3.5" />
+            {status}
+          </Badge>
+        )
+      },
+      filterFn: (row, id, value) => {
+        return value.includes(row.getValue(id))
+      },
+    },
+    {
+      id: "actions",
+      header: () => <div className="sr-only">Actions</div>,
+      cell: ({ row }) => {
+        const applicationId =
+          (row.original as any).applicationId || (row.original as any).id
+
+        const handleUpdate = (status: "SHORTLISTED" | "REJECTED") => {
+          if (!applicationId || statusMutation.isPending) return
+          statusMutation.mutate({ applicationId: String(applicationId), status })
+        }
+
+        return (
+          <div className="flex justify-end">
+            <DropdownMenu>
+              <DropdownMenuTrigger asChild>
+                <Button
+                  variant="ghost"
+                  size="icon"
+                  className="size-8 text-muted-foreground"
+                  disabled={statusMutation.isPending}
+                >
+                  <IconDotsVertical className="size-4" />
+                  <span className="sr-only">Open menu</span>
+                </Button>
+              </DropdownMenuTrigger>
+              <DropdownMenuContent align="end" className="w-48">
+                <DropdownMenuItem disabled>
+                  <IconEye className="mr-2 size-4 opacity-70" />
+                  View Application
+                </DropdownMenuItem>
+                <DropdownMenuItem disabled>
+                  <IconMail className="mr-2 size-4 opacity-70" />
+                  Email Applicant
+                </DropdownMenuItem>
+                <DropdownMenuSeparator />
+                <DropdownMenuItem
+                  onSelect={() => handleUpdate("SHORTLISTED")}
+                  disabled={statusMutation.isPending}
+                >
+                  <IconCircleCheckFilled className="mr-2 size-4 opacity-70" />
+                  Accept Application
+                </DropdownMenuItem>
+                <DropdownMenuItem
+                  onSelect={() => handleUpdate("REJECTED")}
+                  disabled={statusMutation.isPending}
+                  className="text-red-600 focus:text-red-600 focus:bg-red-50"
+                >
+                  <IconCircleXFilled className="mr-2 size-4 opacity-70" />
+                  Reject Application
+                </DropdownMenuItem>
+              </DropdownMenuContent>
+            </DropdownMenu>
+          </div>
+        )
+      },
+    },
+  ]
 
   const table = useReactTable({
-    data,
+    data: tableData,
     columns,
     state: {
       sorting,
@@ -441,6 +472,29 @@ export function DataTable() {
 
   const isFiltered = table.getState().columnFilters.length > 0
 
+  React.useEffect(() => {
+    if (!onStatusFilterChange) return
+    const statusColumn = table.getColumn("status")
+    const currentFilter = (statusColumn?.getFilterValue() as string[]) || []
+    onStatusFilterChange(currentFilter[0])
+  }, [table, onStatusFilterChange, columnFilters])
+
+  if (isLoading) {
+    return (
+      <div className="w-full p-4 md:p-8 bg-muted/5 min-h-screen font-sans">
+        <p className="text-sm text-muted-foreground">Loading applications…</p>
+      </div>
+    )
+  }
+
+  if (isError) {
+    return (
+      <div className="w-full p-4 md:p-8 bg-muted/5 min-h-screen font-sans">
+        <p className="text-sm text-red-500">Failed to load applications.</p>
+      </div>
+    )
+  }
+
   return (
     <div className="w-full p-4 md:p-8 space-y-6 bg-muted/5 min-h-screen font-sans">
       {/* Header */}
@@ -448,7 +502,9 @@ export function DataTable() {
         <div>
           <h2 className="text-2xl font-bold tracking-tight">Recruitment Pipeline</h2>
           <p className="text-sm text-muted-foreground">
-            Manage applicants and track their status.
+            {jobId
+              ? `Viewing applications for ${jobTitle || `job ${jobId}`}`
+              : "Manage applicants and track their status."}
           </p>
         </div>
       </div>
@@ -476,13 +532,6 @@ export function DataTable() {
                 column={table.getColumn("status")}
                 title="Status"
                 options={statusOptions}
-              />
-            )}
-            {table.getColumn("company") && (
-              <DataTableFacetedFilter
-                column={table.getColumn("company")}
-                title="Company"
-                options={companyOptions}
               />
             )}
             {isFiltered && (
