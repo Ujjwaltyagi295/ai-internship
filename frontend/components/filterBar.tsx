@@ -2,19 +2,19 @@ import { Settings2, Edit } from 'lucide-react'
 
 export function FilterBar() {
   const filters = [
-    'Full Stack Engineer',
-    'Within the US',
-    'Full-time',
-    'Internship',
+ 'Full Stack Engineer',
+    'Frontend Engineer',
+    'Backend Engineer',
+    'Mobile Engineer',
     'Onsite',
     'Remote'
   ]
 
   const subFilters = [
     'Hybrid',
-    'Intern/New Grad',
-    'Entry Level',
-    'Min $330k/yr'
+  'Next.js',
+    'Node.js',
+    'Python',
   ]
 
   return (
@@ -51,4 +51,4 @@ export function FilterBar() {
       </div>
     </div>
   )
-}
+}  

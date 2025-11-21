@@ -8,7 +8,7 @@ const router = express.Router();
 
 // Public listing and single job view
 router.get("/", getJobs);
-router.get("/:id", getJobById);  //might not use
+router.post("/:id", getJobById);  //might not use
 
 // Admin-only create
 router.post("/", fetchuser, restrictRole("admin"), createJob);

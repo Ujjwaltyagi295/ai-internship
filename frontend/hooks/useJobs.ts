@@ -78,3 +78,17 @@ export function useJobAutoFill() {
     },
   });
 }
+
+ export function useGetJobById() {
+  return useMutation({
+    mutationFn: (jobid:string) => Jobs.getJobById(jobid),
+    onSuccess: () => {
+      console.log('fetched data by id successfully:');
+    },
+    onError: (error: any) => {
+      const errMsg = error.response?.data?.error || '  failed';
+      console.error('fetched by id failed error:', errMsg);
+     
+    },
+  });
+}

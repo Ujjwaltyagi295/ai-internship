@@ -1,3 +1,6 @@
+"use client";
+
+import { useRouter } from "next/navigation";
 import { timeAgo } from "@/lib/time";
 import { RadialProgress } from "./ui/RadialProgress";
 import { useApplyToJob } from "@/hooks/useJobs";
@@ -15,7 +18,9 @@ function getRandomGradient() {
 }
 
 export function JobCard({ job }) {
+  const router = useRouter();
   const { mutate: apply, isError, isPending } = useApplyToJob();
+
   const timePosted = timeAgo(job.job.updatedAt || "2025-11-20T10:00:00.000Z");
   const hasIcon = Boolean(job.icon);
   const displayIcon =
@@ -25,15 +30,22 @@ export function JobCard({ job }) {
   // Ensure skills is an array
   const skills = Array.isArray(job.job.skills) ? job.job.skills : [];
 
-  // Trimming logic (without "..." since fade is used)
-  const maxDescriptionChars = 150;
-  const trimmedDescription =
-    job.job.description && job.job.description.length > maxDescriptionChars
-      ? job.job.description.substring(0, maxDescriptionChars)
-      : job.job.description;
+  // 1. Navigate to details page
+  const handleCardClick = () => {
+    // Uses job.id (which you mapped from _id in the parent component)
+    router.push(`/dashboard/job/${job.jobId}`);
+  };
+
+  // 2. Stop the card click from firing when clicking Apply
+  const handleButtonClick = (e) => {
+    e.stopPropagation();
+  };
 
   return (
-    <div className="bg-white rounded-xl border border-gray-200 hover:border-gray-300 transition overflow-hidden h-full flex flex-col">
+    <div
+      onClick={handleCardClick}
+      className="bg-white rounded-xl border border-gray-200 hover:border-gray-300 transition overflow-hidden h-full flex flex-col cursor-pointer"
+    >
       <div className="flex flex-col lg:flex-row lg:gap-4 p-4 lg:p-6 flex-1">
         {/* Left Side */}
         <div className="flex-1 flex flex-col min-w-0">
@@ -42,15 +54,24 @@ export function JobCard({ job }) {
             {/* ICON */}
             <div
               className={`w-12 h-12 lg:w-20 lg:h-20 rounded-lg bg-gradient-to-br ${bg} flex items-center justify-center 
-                text-xl lg:text-3xl font-bold flex-shrink-0 ${hasIcon ? "" : "text-white"}`}
+                text-xl lg:text-3xl font-bold flex-shrink-0 ${
+                  hasIcon ? "" : "text-white"
+                }`}
             >
               {displayIcon}
             </div>
 
             <div className="flex-1 min-w-0">
               <div className="flex items-center justify-between mb-1">
-                <span className="text-xs lg:text-sm text-black rounded-4xl bg-[#00f0a01a] p-1 px-3">{timePosted}</span>
-                <button className="lg:hidden p-1 hover:bg-gray-100 rounded">
+                <span className="text-xs lg:text-sm text-black rounded-4xl bg-[#00f0a01a] p-1 px-3">
+                  {timePosted}
+                </span>
+                <button
+                  onClick={(e) => {
+                    e.stopPropagation(); // Prevent menu click from opening page
+                  }}
+                  className="lg:hidden p-1 hover:bg-gray-100 rounded"
+                >
                   <span className="text-xl text-gray-400">•••</span>
                 </button>
               </div>
@@ -64,7 +85,12 @@ export function JobCard({ job }) {
                 {job.job.jobType && <> · {job.job.jobType}</>}
               </div>
             </div>
-            <button className="hidden lg:block p-1 hover:bg-gray-100 rounded flex-shrink-0">
+            <button
+              onClick={(e) => {
+                e.stopPropagation(); // Prevent menu click from opening page
+              }}
+              className="hidden lg:block p-1 hover:bg-gray-100 rounded flex-shrink-0"
+            >
               <span className="text-2xl text-gray-400">•••</span>
             </button>
           </div>
@@ -114,16 +140,22 @@ export function JobCard({ job }) {
                 href={job.job.applyUrl}
                 target="_blank"
                 rel="noopener noreferrer"
+                onClick={handleButtonClick} // STOP PROPAGATION
                 className="w-full lg:w-auto lg:ml-auto text-center px-6 py-2 bg-teal-400 hover:bg-teal-500 cursor-pointer text-white rounded-full text-base font-bold transition"
               >
                 APPLY NOW
               </a>
             ) : (
               <button
-                onClick={() => apply(job.jobId)}
+                onClick={(e) => {
+                  handleButtonClick(e); // STOP PROPAGATION
+                  apply(job.jobId);
+                }}
                 disabled={isPending}
                 className={`w-full lg:w-auto lg:ml-auto text-center px-6 py-2 rounded-full text-base font-bold transition text-white ${
-                  isPending ? "bg-gray-400 cursor-not-allowed" : "bg-teal-400 hover:bg-teal-500 cursor-pointer"
+                  isPending
+                    ? "bg-gray-400 cursor-not-allowed"
+                    : "bg-teal-400 hover:bg-teal-500 cursor-pointer"
                 }`}
               >
                 {isPending ? "Applying..." : "APPLY NOW"}
@@ -136,7 +168,12 @@ export function JobCard({ job }) {
         {typeof job.matchScore === "number" && (
           <div className="hidden lg:flex flex-shrink-0 w-48 bg-gradient-to-b from-black to-[#00485f] rounded-xl p-6 flex-col items-center justify-between text-white">
             <div className="flex flex-col items-center justify-center flex-1">
-              <RadialProgress value={job.matchScore ?? 0} size={112} strokeWidth={3} className="mb-4" />
+              <RadialProgress
+                value={job.matchScore ?? 0}
+                size={112}
+                strokeWidth={3}
+                className="mb-4"
+              />
               <div className="text-center text-sm font-bold">MATCH SCORE</div>
             </div>
           </div>

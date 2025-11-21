@@ -13,6 +13,10 @@ export const Jobs = {
        const response = await API.post("/jobs/",{data});
     return response.data;
   },
+  getJobById:async (id)=>{
+    const response= await API.post(`/jobs/${id}`)
+    return response.data.job;
+  },
    applyToJob: async(jobid)=>{
        const response = await API.post("/jobs/apply",{ jobId: jobid });
     return response.data;
