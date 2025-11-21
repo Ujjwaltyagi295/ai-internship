@@ -36,6 +36,9 @@ class ResumeCleaner:
             "projects": data.get("projects", []) or [],
             "experience": data.get("experience", []) or [],
             "education": data.get("education", []) or [],
+            "branch": _clean_str("branch"),
+            "batch": _clean_str("batch"),
+            "cgpa": data.get("cgpa", "") or "",
         }
 
         # force list types for complex fields

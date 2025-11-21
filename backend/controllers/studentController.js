@@ -254,6 +254,9 @@ export const uploadResume = async (req, res) => {
           parsed?.raw_text?.replace(/\s+/g, " ").trim().slice(0, 250) || "",
         rawText: parsed?.raw_text || "",
       },
+      branch: extracted.branch || "",
+      batch: extracted.batch || "",
+      cgpa: extracted.cgpa ? Number(extracted.cgpa) : 0,
       skillEmbedding: Array.isArray(parsed?.embedding) ? parsed.embedding : [],
       parsedAt: new Date(),
       parserInfo: {

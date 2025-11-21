@@ -26,6 +26,9 @@ const ParsedResumeSchema = new mongoose.Schema(
       summary: { type: String, default: "" },
       rawText: { type: String, default: "" },
     },
+    branch: { type: String, trim: true },
+    cgpa: { type: Number, default: 0 },
+    batch: { type: String, trim: true },
     skillEmbedding: { type: [Number], default: [] },
     parsedAt: { type: Date, default: Date.now },
     parserInfo: {

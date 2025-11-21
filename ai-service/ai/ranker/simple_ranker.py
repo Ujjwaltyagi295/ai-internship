@@ -9,13 +9,19 @@ class SimpleRanker:
     """
 
     def __init__(self) -> None:
-        # Keep weights aligned with the 5 features produced by FeatureBuilder.
+        # Keep weights aligned with the features produced by FeatureBuilder.
         self.weights = np.array([
-            0.62,  # semantic similarity
-            0.30,  # skill overlap ratio
-            0.03,  # branch match
-            0.03,  # domain match
-            0.02,  # GPA normalized
+            0.30,   # semantic similarity
+            0.20,   # required skills coverage
+            0.10,   # related skills coverage
+            0.08,   # tool overlap
+            -0.08,  # missing required skills (penalty)
+            0.08,   # domain match
+            0.06,   # title overlap
+            0.06,   # role title match
+            0.05,   # degree/major match
+            0.04,   # experience match
+            0.01,   # GPA normalized
         ], dtype=float)
 
     def score(self, features: Iterable[float]) -> float:

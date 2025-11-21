@@ -30,7 +30,10 @@ Extract the following fields from the resume text and return ONLY valid JSON:
       "startYear": "string",
       "endYear": "string"
     }
-  ]
+  ],
+  "branch": "string",        // student's branch/major, e.g., CSE/IT/ECE
+  "cgpa": "string",          // CGPA or GPA as stated
+  "batch": "string"          // graduation year/batch if present
 }
 
 Rules:

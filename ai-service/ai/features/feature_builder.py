@@ -2,6 +2,7 @@
 import re
 import numpy as np
 from typing import Dict, List, Tuple
+from ai.features.domain_map import DOMAIN_KEYWORDS_TEXT, DOMAIN_KEYWORDS_SKILLS
 
 
 def cosine_similarity(a, b):
@@ -35,14 +36,8 @@ class FeatureBuilder:
         if not text:
             return []
         t = text.lower()
-        domain_map = {
-            "web": ["frontend", "backend", "full stack", "full-stack", "web", "react", "next", "angular", "vue"],
-            "mobile": ["mobile", "android", "ios", "flutter", "react native", "react-native", "jetpack", "swiftui"],
-            "cloud": ["cloud", "devops", "aws", "azure", "gcp", "kubernetes", "docker", "ci/cd"],
-            "data": ["data", "machine learning", "ml", "analytics", "ai", "nlp", "pandas", "numpy"],
-        }
         scores = {}
-        for dom, kws in domain_map.items():
+        for dom, kws in DOMAIN_KEYWORDS_TEXT.items():
             scores[dom] = sum(1 for k in kws if k in t)
         # return domains with positive score, sorted by score desc
         return [d for d, sc in sorted(scores.items(), key=lambda kv: kv[1], reverse=True) if sc > 0]
@@ -53,14 +48,8 @@ class FeatureBuilder:
         if not skills:
             return []
         s = [skill.lower() for skill in skills]
-        domain_map = {
-            "web": ["react", "next", "vue", "angular", "tailwind", "css", "html", "javascript", "typescript", "node", "express"],
-            "mobile": ["react native", "flutter", "swift", "kotlin", "android", "ios"],
-            "cloud": ["aws", "azure", "gcp", "kubernetes", "docker", "terraform", "ci/cd"],
-            "data": ["pandas", "numpy", "sklearn", "scikit", "tensorflow", "pytorch", "ml", "nlp"],
-        }
         scores = {}
-        for dom, kws in domain_map.items():
+        for dom, kws in DOMAIN_KEYWORDS_SKILLS.items():
             scores[dom] = sum(1 for skill in s for kw in kws if kw in skill)
         return [d for d, sc in sorted(scores.items(), key=lambda kv: kv[1], reverse=True) if sc > 0]
 
@@ -113,37 +102,47 @@ class FeatureBuilder:
         elif sim > 0.20:
             reasons.append("Weak semantic similarity to the job description.")
 
-        # skill overlap with normalization + loose containment
+        # Helpers for list cleaning
+        def _clean_list(val):
+            if not val:
+                return []
+            if isinstance(val, str):
+                return [v.strip() for v in val.split(",") if v.strip()]
+            if isinstance(val, list):
+                return [str(v).strip() for v in val if str(v).strip()]
+            return []
+
         raw_s_skills = [s for s in student.get("skills", []) if isinstance(s, str)]
-        raw_j_skills = [s for s in job.get("skills", []) if isinstance(s, str)]
+        raw_req_skills = _clean_list(job.get("skills_required") or job.get("skills") or [])
+        raw_related_skills = _clean_list(job.get("related_skills_in_job") or [])
+        raw_job_skills = _clean_list(job.get("skills") or [])
+        raw_job_tools = _clean_list(job.get("tools") or [])
 
         norm_s = { _normalize_skill(s): s for s in raw_s_skills if _normalize_skill(s) }
-        norm_j = { _normalize_skill(s): s for s in raw_j_skills if _normalize_skill(s) }
+        norm_req = { _normalize_skill(s): s for s in raw_req_skills if _normalize_skill(s) }
+        norm_related = { _normalize_skill(s): s for s in raw_related_skills if _normalize_skill(s) }
+        norm_tools = { _normalize_skill(s): s for s in raw_job_tools if _normalize_skill(s) }
+        norm_job = { _normalize_skill(s): s for s in raw_job_skills if _normalize_skill(s) }
 
-        overlap = set()
-        for ns, s_raw in norm_s.items():
-            for nj, j_raw in norm_j.items():
-                if not ns or not nj:
-                    continue
-                if self.loose_match(ns, nj):
-                    overlap.add(j_raw)
+        def _coverage(src: set, tgt: set) -> float:
+            if not tgt:
+                return 0.0
+            hits = sum(1 for t in tgt if any(self.loose_match(t, s) for s in src))
+            return (hits / len(tgt)) ** 0.5
 
-        if overlap:
-            reasons.append("Matching skills: " + ", ".join(sorted(overlap)))
-
-        denom = max(len(norm_j), 1)
-        skill_overlap_ratio = len(overlap) / denom
-        # Soften penalty when lists differ; boost partial overlap.
-        skill_overlap_ratio = skill_overlap_ratio ** 0.5
-
-        # branch match
-        branch_match = 0.0
-        if job.get("branch") and student.get("branch"):
-            jb = job["branch"].lower()
-            sb = student["branch"].lower()
-            if jb in sb or sb in jb:
-                branch_match = 1.0
-                reasons.append("Your branch matches the preferred branch.")
+        required_cov = _coverage(set(norm_s.keys()), set(norm_req.keys()))
+        related_cov = _coverage(set(norm_s.keys()), set(norm_related.keys()))
+        tool_overlap = _coverage(set(norm_s.keys()), set(norm_tools.keys()))
+        missing_required = 0.0
+        if norm_req:
+            matched = sum(1 for t in norm_req if any(self.loose_match(t, s) for s in norm_s))
+            missing_required = max(0.0, (len(norm_req) - matched) / len(norm_req))
+        # general skill overlap as backup
+        general_overlap = _coverage(set(norm_s.keys()), set(norm_job.keys()))
+        if matched := [norm_req[k] for k in norm_req if any(self.loose_match(k, s) for s in norm_s)]:
+            reasons.append("Matching required skills: " + ", ".join(sorted(set(matched))))
+        elif general_overlap > 0:
+            reasons.append("Some skills match the role requirements.")
 
         # domain match
         domain_match = 0.0
@@ -167,27 +166,55 @@ class FeatureBuilder:
             dom = sorted(shared_domains)[0]
             reasons.append(f"This role matches your preferred domain: {dom}.")
 
-        # experience / education signals (reason-only, no feature slots)
-        exp_entries = student.get("experience") or []
+        # title overlap (job title vs resume text + skills)
+        title_tokens = [tok for tok in re.split(r"[^a-z0-9]+", job.get("title", "").lower()) if tok]
+        resume_text = student.get("resume_text", "").lower()
+        title_hits = sum(1 for t in title_tokens if t and (t in resume_text or t in " ".join(norm_s.keys())))
+        title_overlap = min(title_hits / len(title_tokens), 1.0) if title_tokens else 0.0
+        if title_overlap >= 0.5:
+            reasons.append("Your profile mentions key terms from the job title.")
+
+        # role title match (student positions vs job title)
+        positions = _clean_list(student.get("positions") or [])
+        role_match = 0.0
+        if positions and title_tokens:
+            pos_text = " ".join(positions).lower()
+            pos_tokens = [tok for tok in re.split(r"[^a-z0-9]+", pos_text) if tok]
+            hits = sum(1 for t in title_tokens if t in pos_tokens)
+            role_match = min(hits / len(title_tokens), 1.0)
+
+        # education match
         edu_entries = student.get("education") or []
-        job_text_lower = f"{job.get('title','')} {job.get('description','')}".lower()
+        edu_text = " ".join(str(e) for e in edu_entries).lower()
+        edu_req = str(job.get("education_requirement", "") or job.get("educationaL_requirements", "") or "").lower()
+        degree_match = 0.0
+        if edu_req and edu_entries:
+            degree_match = 1.0 if any(tok in edu_text for tok in edu_req.split()) else 0.0
 
-        if exp_entries:
-            reasons.append("Your resume includes prior experience.")
-        else:
-            reasons.append("No experience details were found in your profile.")
+        # experience match (count-based vs requested years in text)
+        exp_entries = student.get("experience") or []
+        exp_req_text = str(job.get("experience_requirement", "") or job.get("experiencere_requirement", "") or "").lower()
+        exp_match = 0.0
+        req_years = 0.0
+        m = re.search(r"(\d+)\s*(\+)?\s*(year|yr)", exp_req_text)
+        if m:
+            req_years = float(m.group(1))
+        if req_years > 0:
+            exp_match = min(len(exp_entries) / max(req_years, 1.0), 1.0)
+        elif exp_entries:
+            exp_match = 1.0
 
-        if edu_entries:
-            # rough degree hint check
-            degree_match = any(
-                kw in job_text_lower for kw in ["bachelor", "master", "phd", "degree"]
-            )
-            if degree_match:
-                reasons.append("Education details provided for degree-driven role.")
-            else:
-                reasons.append("Education details are present in your profile.")
-        else:
-            reasons.append("No education details were provided.")
+        # responsibilities overlap (student responsibilities vs job responsibilities text)
+        job_resp = str(job.get("responsibilities_text", "") or "")
+        stud_resp = str(student.get("responsibilities", "") or "")
+        resp_overlap = 0.0
+        if job_resp and stud_resp:
+            job_tokens = set(re.split(r"[^a-z0-9]+", job_resp.lower()))
+            stud_tokens = set(re.split(r"[^a-z0-9]+", stud_resp.lower()))
+            job_tokens.discard("")
+            stud_tokens.discard("")
+            if job_tokens:
+                resp_overlap = len(job_tokens & stud_tokens) / len(job_tokens)
 
         # GPA normalized (0-10 scale)
         gpa = float(student.get("gpa") or 0.0)
@@ -195,21 +222,27 @@ class FeatureBuilder:
 
         features = np.array([
             sim,                 # 0
-            skill_overlap_ratio, # 1
-            branch_match,        # 2
-            domain_match,        # 3
-            gpa_norm             # 4
+            required_cov,        # 1
+            related_cov,         # 2
+            tool_overlap,        # 3
+            missing_required,    # 4 (penalty; weight negative in simple ranker)
+            domain_match,        # 5
+            title_overlap,       # 6
+            role_match,          # 7
+            degree_match,        # 8
+            exp_match,           # 9
+            gpa_norm,            # 10
         ], dtype=float)
 
         # Fallback negative explanations when signal is weak; ensure non-empty reasons.
         if not reasons:
             if not raw_s_skills:
                 reasons.append("No skills were extracted from your resume.")
-            if not raw_j_skills:
+            if not raw_job_skills:
                 reasons.append("This job listing has no skills data.")
             if sim < 0.3:
                 reasons.append("Low semantic similarity between your resume and this job.")
-            if raw_s_skills and raw_j_skills and not overlap:
+            if raw_s_skills and raw_job_skills and required_cov == 0.0 and general_overlap == 0.0:
                 reasons.append("No matching skills found between your profile and this job.")
             if not reasons:
                 reasons.append("No highlights available for this match.")
@@ -218,8 +251,10 @@ class FeatureBuilder:
         print("Student skills:", student.get("skills"))
         print("Job skills:", job.get("skills"))
         print("Normalized student skills:", norm_s)
-        print("Normalized job skills:", norm_j)
-        print("Overlap:", overlap)
+        print("Required skills norm:", norm_req)
+        print("Related skills norm:", norm_related)
+        print("Tool norm:", norm_tools)
+        print("General job skills norm:", norm_job)
         print("Semantic similarity:", sim)
         print("Feature vector:", features)
         print("Reasons:", reasons)

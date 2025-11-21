@@ -43,10 +43,6 @@ const studentSchema = new mongoose.Schema(
       default: "student",
     },
 
-    branch: { type: String, trim: true },
-    cgpa: Number,
-    batch: String,
-
     resume: {
       fileName: String,
       originalName: String,

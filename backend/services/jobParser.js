@@ -69,7 +69,7 @@ const mongooseAiSchema = {
       type: SchemaType.STRING,
       description: "Broad domain (e.g., Web Dev, AI, Data Science).",
       nullable: true,
-    }
+    },
   },
   required: ["title", "description", "skills", "jobType"],
 };
@@ -91,6 +91,7 @@ export const parseJobText = async (rawText) => {
     Rules:
     - If 'jobType' is unclear, default to "Internship".
     - Separate specific coding languages into 'skills' and software/platforms into 'tools'.
+    - Normalize 'batchAllowed' to just the year (e.g., "2025").
     - Normalize 'batchAllowed' to just the year (e.g., "2025").
     
     Raw Input: "${rawText}"
