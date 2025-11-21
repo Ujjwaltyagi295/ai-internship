@@ -24,11 +24,7 @@ import {
 import { NavUser } from "@/components/nav-user"
 
 const navMain = [
-  {
-    title: "applications",
-    url: "/admin/applications",
-    icon: IconDashboard,
-  },
+
   {
     title: "Jobs",
     url: "/admin/jobs",
@@ -57,7 +53,7 @@ const navSecondary = [
 const user = {
   name: "profile",
   email: "m@example.com",
-  avatar: "/avatars/shadcn.jpg",
+
 }
 
 export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {

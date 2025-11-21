@@ -1,4 +1,4 @@
-// controllers/jobController.js
+import mongoose from "mongoose";
 import Job from "../models/jobModel.js";
 import Application from "../models/applicationModel.js";
 import Student from "../models/studentModel.js";
@@ -131,36 +131,52 @@ export const getJobById = async (req, res) => {
 export const applyToJob = async (req, res) => {
   try {
     const { jobId, matchScore } = req.body;
-    console.log(req.body)
-    if (!jobId) return res.status(400).json({ error: "jobId required" });
+    console.log(jobId,matchScore)
 
+    if (!jobId) {
+      return res.status(400).json({ error: "jobId required" });
+    }
+
+    // Validate if jobId is a valid ObjectId string for Mongoose
+    if (!mongoose.Types.ObjectId.isValid(jobId)) {
+      return res.status(400).json({ error: "Invalid jobId" });
+    }
+
+    // Find the job document by ID
     const job = await Job.findById(jobId);
-    if (!job) return res.status(404).json({ error: "Job not found" });
+    if (!job) {
+      return res.status(404).json({ error: "Job not found" });
+    }
 
+    // If the job is external application, just respond with the apply url
     if (job.externalApply && job.applyUrl) {
-      // External apply flow: send URL to client
       return res.json({ external: true, applyUrl: job.applyUrl });
     }
 
-    // Internal apply flow: create Application if not exists
+    // Check if the user has already applied to this job
     const existing = await Application.findOne({ student: req.user.id, job: jobId });
-    if (existing) return res.status(400).json({ error: "Already applied" });
+    if (existing) {
+      return res.status(400).json({ error: "Already applied" });
+    }
 
-    // Optionally take a snapshot of student's resume metadata
+    // Retrieve student's resume snapshot from their profile to record with the application
     const student = await Student.findById(req.user.id).lean();
 
+    // Normalize matchScore to integer 0-100 if provided
     const numericMatchScore =
       typeof matchScore === "number"
         ? Math.min(100, Math.max(0, Math.round(matchScore)))
         : undefined;
 
+    // Create the new application document
     const app = await Application.create({
       student: req.user.id,
       job: jobId,
-      resumeSnapshot: student.resume || undefined,
+      resumeSnapshot: student?.resume || undefined,
       matchScore: numericMatchScore,
     });
 
+    // Respond success and new application
     res.status(201).json({ msg: "Applied successfully", application: app });
   } catch (err) {
     console.error(err);

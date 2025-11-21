@@ -54,7 +54,7 @@ export async function getJobApplications(req, res) {
   try {
     const { jobId } = req.params;
     const { status } = req.query; // optional status filter
-
+      console.log(jobId)
     const query = { job: jobId };
     if (status) {
       const statusList = Array.isArray(status) ? status : String(status).split(",");

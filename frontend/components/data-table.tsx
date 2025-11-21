@@ -73,6 +73,7 @@ import {
 } from "@/components/ui/popover"
 import { Jobs } from "@/app/api/job"
 import { useMutation, useQueryClient } from "@tanstack/react-query"
+import { useRouter } from "next/navigation"
 
 // --- 1. Data Types & Schema ---
 const applicantSchema = z.object({
@@ -252,8 +253,11 @@ export function DataTable({
   const [columnVisibility, setColumnVisibility] = React.useState<VisibilityState>({})
   const [columnFilters, setColumnFilters] = React.useState<ColumnFiltersState>([])
   const [sorting, setSorting] = React.useState<SortingState>([])
+  const router= useRouter()
   const queryClient = useQueryClient()
-
+    const handleView=()=>{
+      router.push(`/admin/applications/${jobId}`)
+    }
   React.useEffect(() => {
     setTableData(data)
   }, [data])
@@ -417,7 +421,7 @@ export function DataTable({
                 </Button>
               </DropdownMenuTrigger>
               <DropdownMenuContent align="end" className="w-48">
-                <DropdownMenuItem disabled>
+                <DropdownMenuItem onClick={handleView} >
                   <IconEye className="mr-2 size-4 opacity-70" />
                   View Application
                 </DropdownMenuItem>

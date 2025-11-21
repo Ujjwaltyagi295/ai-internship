@@ -65,19 +65,23 @@ export function useJobAutoFill() {
      
     },
   }); }
-  export function useApplyToJob() {
+
+export function useApplyToJob() {
   return useMutation({
-    mutationFn: (jobid:string) => Jobs.applyToJob(jobid),
+    mutationFn: ({ jobId, matchScore }: { jobId: string; matchScore?: number }) => Jobs.applyToJob(jobId, matchScore),
+      
     onSuccess: (data) => {
-      console.log('applied successfully:', data);
+      console.log('Applied successfully:', data);
+     
     },
     onError: (error: any) => {
-      const errMsg = error.response?.data?.error || 'application  failed';
-      console.error('application failed error:', errMsg);
+      const errMsg = error.response?.data?.error || 'Application failed';
+      console.error('Application failed error:', errMsg);
      
     },
   });
 }
+
 
  export function useGetJobById() {
   return useMutation({
@@ -90,5 +94,13 @@ export function useJobAutoFill() {
       console.error('fetched by id failed error:', errMsg);
      
     },
+  });
+}
+
+export function useGetApplicationById(id:string){
+  return useQuery({
+    queryKey: ["application"],
+    queryFn:()=> Jobs.getApplicationById(id),
+    staleTime: 1000 * 60 * 2, 
   });
 }
