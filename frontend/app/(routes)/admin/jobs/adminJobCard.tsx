@@ -16,6 +16,7 @@ function getRandomGradient() {
 
 type JobCardProps = {
   job: {
+    _id?: string
     icon?: React.ReactNode
     company?: string
     title: string
@@ -28,9 +29,10 @@ type JobCardProps = {
     applicants?: number
     applyUrl?: string
   }
+  onSelect?: (jobId?: string) => void
 }
 
-export function AdminJobCard({ job }: JobCardProps) {
+export function AdminJobCard({ job, onSelect }: JobCardProps) {
   const timePosted = "some dynamic or computed string"
   const hasIcon = Boolean(job.icon)
   const displayIcon =
@@ -43,7 +45,10 @@ export function AdminJobCard({ job }: JobCardProps) {
   }, [])
 
   return (
-    <div className="bg-white rounded-xl border border-gray-200 hover:border-gray-300 transition overflow-hidden h-full flex flex-col">
+    <div
+      className="bg-white rounded-xl border border-gray-200 hover:border-gray-300 transition overflow-hidden h-full flex flex-col cursor-pointer"
+      onClick={() => onSelect?.(job._id)}
+    >
       <div className="flex flex-col lg:flex-row lg:gap-4 p-4 lg:p-6 flex-1">
         {/* Left Side */}
         <div className="flex-1 flex flex-col min-w-0">

@@ -129,7 +129,7 @@ export const getJobById = async (req, res) => {
  */
 export const applyToJob = async (req, res) => {
   try {
-   const { jobId } = req.body;
+    const { jobId, matchScore } = req.body;
     console.log(req.body)
     if (!jobId) return res.status(400).json({ error: "jobId required" });
 
@@ -148,10 +148,16 @@ export const applyToJob = async (req, res) => {
     // Optionally take a snapshot of student's resume metadata
     const student = await Student.findById(req.user.id).lean();
 
+    const numericMatchScore =
+      typeof matchScore === "number"
+        ? Math.min(100, Math.max(0, Math.round(matchScore)))
+        : undefined;
+
     const app = await Application.create({
       student: req.user.id,
       job: jobId,
       resumeSnapshot: student.resume || undefined,
+      matchScore: numericMatchScore,
     });
 
     res.status(201).json({ msg: "Applied successfully", application: app });

@@ -8,6 +8,7 @@ import { Input } from "@/components/ui/input";
 import { useRouter } from "next/navigation";
 
 type Job = {
+  _id?: string;
   company: string;
   title: string;
   location: string;
@@ -40,6 +41,12 @@ export function JobsFilter({ jobs }: JobsFilterProps) {
         job.location.toLowerCase().includes(search.toLowerCase())) &&
       (jobType === "all" || job.jobType === jobType)
   );
+
+  const handleSelectJob = (jobId?: string) => {
+    if (jobId) {
+      router.push(`/admin/applications?jobId=${jobId}`);
+    }
+  };
 
   return (
     <>
@@ -108,7 +115,7 @@ export function JobsFilter({ jobs }: JobsFilterProps) {
         {filteredJobs.length > 0 ? (
           <div className="grid gap-4">
             {filteredJobs.map((job, index) => (
-              <AdminJobCard key={index} job={job} />
+              <AdminJobCard key={job._id || index} job={job} onSelect={handleSelectJob} />
             ))}
           </div>
         ) : (

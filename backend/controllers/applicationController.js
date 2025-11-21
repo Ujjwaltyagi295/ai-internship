@@ -53,9 +53,21 @@ export async function getStudentApplications(req, res) {
 export async function getJobApplications(req, res) {
   try {
     const { jobId } = req.params;
+    const { status } = req.query; // optional status filter
 
-    const applications = await Application.find({ job: jobId })
+    const query = { job: jobId };
+    if (status) {
+      const statusList = Array.isArray(status) ? status : String(status).split(",");
+      query.status = {
+        $in: statusList.map((s) =>
+          String(s).toUpperCase().replace(/\s+/g, "_")
+        ),
+      };
+    }
+
+    const applications = await Application.find(query)
       .populate('student')
+      .populate('job')
       .sort({ createdAt: -1 });
 
     res.json(applications);
