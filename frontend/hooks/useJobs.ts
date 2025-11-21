@@ -81,7 +81,7 @@ export function useJobAutoFill() {
 
  export function useGetJobById() {
   return useMutation({
-    mutationFn: (jobid:string) => Jobs.getJobById(jobid),
+    mutationFn: (id:string) => Jobs.getJobById(id),
     onSuccess: () => {
       console.log('fetched data by id successfully:');
     },

@@ -18,7 +18,7 @@ export const Jobs = {
     return response.data;
   },
   getJobById: async (jobId: string) => {
-    const response = await API.get(`/jobs/${jobId}`);
+    const response = await API.post(`/jobs/${jobId}`);
     return response.data.job;
   },
   updateApplicationStatus: async (applicationId: string, status: string) => {
