@@ -149,7 +149,11 @@ export function JobCard({ job }) {
               <button
                 onClick={(e) => {
                   handleButtonClick(e); // STOP PROPAGATION
-                  apply(job.jobId);
+                  // 🟢 UPDATED: Passing object with matchScore
+                  apply({ 
+                    jobId: job.jobId, 
+                    matchScore: job.matchScore 
+                  });
                 }}
                 disabled={isPending}
                 className={`w-full lg:w-auto lg:ml-auto text-center px-6 py-2 rounded-full text-base font-bold transition text-white ${

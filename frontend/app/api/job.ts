@@ -39,4 +39,8 @@ export const Jobs = {
     const response = await API.post("/jobs/autocreate", { text: data });
     return response.data.data;
   },
+    getApplicationById: async (jobId: string) => {
+    const response = await API.get(`/applications/job/${jobId}`);
+    return response.data;
+  },
 };

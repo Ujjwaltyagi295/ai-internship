@@ -2,7 +2,6 @@
 
 import * as React from "react";
 import { useSearchParams } from "next/navigation";
-import { ChartAreaInteractive } from "@/components/chart-area-interactive";
 import { DataTable } from "@/components/data-table";
 import { ApplicationStats } from "@/components/section-cards";
 import { Jobs } from "@/app/api/job";
